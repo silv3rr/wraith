@@ -643,7 +643,6 @@ LIBELF_LIB
 LIBELF_BUNDLED
 EGREP
 GREP
-DEBLDFLAGS
 DEBCXXFLAGS
 STATIC
 BUILDARCH
@@ -3826,7 +3825,8 @@ ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ex
 ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
 
     ac_saved_flags="$CXXFLAGS"
-    CXXFLAGS="-Werror -fsanitize=address"
+#    CXXFLAGS="-Werror -fsanitize=address"
+    CXXFLAGS="-Werror"
     cat build/confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end build/confdefs.h.  */
 
@@ -3871,7 +3871,8 @@ EOF
   fi
 
 if [ "${ax_cv_prog_cc_fsanitize_address}" = "yes" ]; then
-  DEBLDFLAGS="${DEBLDFLAGS} -fsanitize=address"
+#  LDFLAGS="${LDFLAGS} -fsanitize=address"
+  LDFLAGS="${LDFLAGS}"
 fi
 
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether the compiler understands -fstack-protector-all" >&5
@@ -4853,7 +4854,6 @@ fi
 else
   STATIC=""
 fi
-
 
 
 
@@ -6177,7 +6177,8 @@ tcllibpaths="$HOME/lib $HOME/tcl/lib \
              /usr/local/lib/tcl8.4 /usr/lib/tcl8.4 \
              /usr/local/lib/tcl8.3 /usr/lib/tcl8.3 \
              /usr/local/pkgs/tcl/lib /sys/lib /usr/pkg/lib \
-             /usr/i486-linuxaout/lib /beos/system/lib $HOME"
+             /usr/i486-linuxaout/lib /beos/system/lib \
+             /usr/lib/i386-linux-gnu /usr/lib/x86_64-linux-gnu $HOME"
 
 # Tcl header filenames and search paths.
 tclheadernames="tcl.h"
