@@ -49,6 +49,7 @@ tellconf()
   sdprintf(STR("uid: %d\n"), conf.uid);
   sdprintf(STR("homedir: %s\n"), conf.homedir);
   sdprintf(STR("username: %s\n"), conf.username);
+  sdprintf(STR("botident: %s\n"), conf.botident);
   sdprintf(STR("datadir: %s\n"), replace(conf.datadir, conf.homedir, "~"));
   sdprintf(STR("portmin: %d\n"), conf.portmin);
   sdprintf(STR("portmax: %d\n"), conf.portmax);
@@ -337,6 +338,7 @@ init_conf()
   conf.portmax = 0;
   conf.uid = -1;
   conf.username = NULL;
+  conf.botident = NULL;
   conf.homedir = NULL;
   conf.datadir = strdup(STR("./..."));
   expand_tilde(&conf.datadir);
@@ -538,6 +540,8 @@ free_conf()
     free(conf.localhub);
   if (conf.username)
     free(conf.username);
+  if (conf.botident)
+    free(conf.botident);
   if (conf.datadir)
     free(conf.datadir);
   if (conf.homedir)
@@ -581,6 +585,9 @@ parseconf(bool error)
   if (error && (!conf.username || !conf.username[0]))
     werr(ERR_NOUSERNAME);
 
+  if (!conf.botident)
+    str_redup(&conf.botident, my_botident(0));
+ 
   if (error && conf.uid != (signed) myuid) {
     sdprintf(STR("wrong uid, conf: %d :: %d"), conf.uid, myuid);
     werr(ERR_WRONGUID);
@@ -646,11 +653,15 @@ readconf(const char *fname, int bits)
       } else if (option == STR("username")) {       /* shell username */
         str_redup(&conf.username, line.c_str());
 
+      } else if (option == STR("botident")) {       /* bot ident */
+        str_redup(&conf.botident, line.c_str());
+
       } else if (option == STR("homedir")) {        /* homedir */
         str_redup(&conf.homedir, line.c_str());
 
       } else if (option == STR("datadir")) {        /* datadir */
         str_redup(&conf.datadir, line.c_str());
+
 
       } else if (option == STR("portmin")) {
         if (egg_isdigit(line[0]))
@@ -766,6 +777,13 @@ writeconf(char *filename, int fd, int bits)
     *stream << bd::String::printf(STR("%s! username %s\n"), do_confedit == CONF_STATIC ? "" : "#", conf.username);
   } else
     *stream << bd::String::printf(STR("! username %s\n"), conf.username ? conf.username : my_username() ? my_username() : "");
+
+  if (conf.botident && my_botident(0) && strcmp(conf.botident, my_botident(0))) {
+    conf_com();
+    *stream << bd::String::printf(STR("%s! botident %s\n"), do_confedit == CONF_AUTO ? "" : "#", my_botident(0));
+    *stream << bd::String::printf(STR("%s! botident %s\n"), do_confedit == CONF_STATIC ? "" : "#", conf.botident);
+  } else
+    *stream << bd::String::printf(STR("! botident %s\n"), conf.botident ? conf.botident : my_botident(0) ? my_botident(0) : "");
 
   if (conf.homedir && homedir(0) && strcmp(conf.homedir, homedir(0))) {
     conf_com();
@@ -967,6 +985,8 @@ bin_to_conf(bool error)
   conf.uid = atol(settings.uid);
   if (settings.username[0])
     str_redup(&conf.username, settings.username);
+  if (settings.botident[0])
+    str_redup(&conf.botident, settings.botident);
   str_redup(&conf.datadir, settings.datadir);
   if (settings.homedir[0])
     str_redup(&conf.homedir, settings.homedir);

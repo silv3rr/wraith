@@ -594,6 +594,7 @@ static void edpack(settings_t *incfg, const char *in_hash, int what)
   dofield(incfg->uid);
   dofield(incfg->autocron);
   dofield(incfg->username);
+  dofield(incfg->botident);
   dofield(incfg->datadir);
   dofield(incfg->homedir);
   dofield(incfg->portmin);
@@ -628,6 +629,7 @@ tellconfig(settings_t *incfg)
   dofield(incfg->uid);
   dofield(incfg->autocron);
   dofield(incfg->username);
+  dofield(incfg->botident);
   dofield(incfg->datadir);
   dofield(incfg->homedir);
   dofield(incfg->portmin);
@@ -787,6 +789,8 @@ void conf_to_bin(conf_t *in, bool move, int die)
   if (in->username)
     strlcpy(settings.username, in->username, sizeof(settings.username));
   strlcpy(settings.datadir, in->datadir, sizeof(settings.datadir));
+  if (in->botident)
+    strlcpy(settings.botident, in->botident, sizeof(settings.botident));
   if (in->homedir)
     strlcpy(settings.homedir, in->homedir, sizeof(settings.homedir));
   for (bot = in->bots; bot && bot->nick; bot = bot->next) {

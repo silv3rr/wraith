@@ -39,6 +39,7 @@ typedef struct conf_b {
   char *localhub_socket;	/* my localhub unix socket */
   char *datadir;
   char *username;       /* shell username */
+  char *botident;	/* bot ident */
   char *homedir;        /* homedir */
   in_port_t portmin;       /* for hubs, the reserved port range for incoming connections */
   in_port_t portmax;       /* for hubs, the reserved port range for incoming connections */

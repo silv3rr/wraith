@@ -49,6 +49,7 @@ void check_mypid();
 void clear_tmp();
 char *homedir(bool = 1);
 char *my_username();
+char *my_botident(bool = 1);
 void expand_tilde(char **);
 int shell_exec(char *, char *, char **, char **, bool = 0);
 int simple_exec(const char* argv[]);

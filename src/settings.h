@@ -29,10 +29,11 @@ typedef struct settings_struct {
   char conf_hubs[513];
   char bots[1025];
   char uid[17];
-  char autocron[17];         /* should the bot auto crontab itself? */
+  char autocron[17];       /* should the bot auto crontab itself? */
   char username[49];       /* shell username */
+  char botident[49];       /* bot ident */
   char datadir[1025];
-  char homedir[1025];        /* homedir */
+  char homedir[1025];     /* homedir */
   char portmin[17];       /* for hubs, the reserved port range for incoming connections */
   char portmax[17];       /* for hubs, the reserved port range for incoming connections */
   /* -- PADDING -- */
@@ -53,7 +54,7 @@ sizeof(settings.salt1) + sizeof(settings.salt2) + sizeof(settings.dcc_prefix) + 
 
 #define SIZE_CONF sizeof(settings.dynamic_initialized) + sizeof(settings.conf_hubs) + sizeof(settings.bots) + sizeof(settings.uid) + \
 sizeof(settings.autocron) + \
-sizeof(settings.username) + sizeof(settings.homedir) + \
+sizeof(settings.username) + sizeof(settings.botident) + sizeof(settings.homedir) + \
 sizeof(settings.portmin) + sizeof(settings.portmin) + sizeof(settings.datadir)
 
 #define SIZE_PAD_ALIGN PREFIXLEN

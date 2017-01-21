@@ -793,6 +793,36 @@ char *my_username()
   return username[0] ? username : NULL;
 }
 
+char *my_botident(bool useconf)
+{
+
+  static char botident_buf[DIRMAX] = "";
+
+  if (!botident_buf[0]) {
+    if (conf.botident && useconf)
+       simple_snprintf(botident_buf, sizeof botident_buf, "%s", conf.botident);
+    else {
+      FILE *f;
+      char dotispoof[1024] = "";
+      char ispoof[DIRMAX] = "";
+      if (!conf.homedir)
+        str_redup(&conf.homedir, homedir());
+      simple_snprintf(dotispoof, sizeof(dotispoof), "%s/.ispoof", conf.homedir);
+      if ((f = fopen(dotispoof, "r"))) {
+        if (!fgets(ispoof, sizeof(ispoof), f)) {
+          fclose(f);
+          return 0;
+        }
+        fclose(f);
+        remove_crlf(ispoof);
+        if (ispoof && strlen(ispoof))
+          strlcpy(botident_buf, ispoof, sizeof(botident_buf));
+      }
+    }
+  }
+  return botident_buf[0] ? botident_buf : NULL;
+}
+
 int mkdir_p(const char *dir) {
   char *p = NULL, *path = NULL;
 

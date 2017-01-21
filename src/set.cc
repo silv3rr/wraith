@@ -300,7 +300,8 @@ sdprintf("var (mem): %s -> %s", var->name, datain ? datain : "(NULL)");
     *(bool *) (var->mem) = num;
 
     if (!strcmp(var->name, "ident-botnick"))
-      strlcpy(botuser, conf.username && !num ? conf.username : origbotname, 21);
+//      strlcpy(botuser, conf.username && !num ? conf.username : origbotname, 21);
+      strlcpy(botuser, conf.botident && !num ? conf.botident : origbotname, 21);
     else if ((!strcmp(var->name, "deaf") && deaf_char) || (!strcmp(var->name, "callerid") && callerid_char)) {
       if (server_online) {
         char which = 0;
