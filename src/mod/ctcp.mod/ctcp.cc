@@ -689,28 +689,66 @@ void ctcp_init()
   struct utsname un;
 
   bzero(&un, sizeof(un));
+/*
   if (!uname(&un)) {
     strlcpy(cloak_os, un.sysname, sizeof(cloak_os));
     strlcpy(cloak_osver, un.release, sizeof(cloak_osver));
     strlcpy(cloak_host, un.nodename, sizeof(cloak_host));
   } else {
+*/
     /* shit, we have to come up with something ourselves.. */
-    switch (randint(2)) {
+    switch (randint(11)) {
     case 0:
       strlcpy(cloak_os, "Linux", sizeof(cloak_os));
       strlcpy(cloak_osver, "2.6.25.5", sizeof(cloak_osver));
       break;
     case 1:
+      strlcpy(cloak_os, "Linux", sizeof(cloak_os));
+      strlcpy(cloak_osver, "3.16.7", sizeof(cloak_osver));
+      break;
+    case 2:
+      strlcpy(cloak_os, "Linux", sizeof(cloak_os));
+      strlcpy(cloak_osver, "4.4.0-42.62", sizeof(cloak_osver));
+      break;
+    case 3:
+      strlcpy(cloak_os, "Linux", sizeof(cloak_os));
+      strlcpy(cloak_osver, "4.8.0-22", sizeof(cloak_osver));
+      break;
+    case 4:
       strlcpy(cloak_os, "FreeBSD", sizeof(cloak_os));
       strlcpy(cloak_osver, "7.0-p4", sizeof(cloak_osver));
       break;
+    case 5:
+      strlcpy(cloak_os, "FreeBSD", sizeof(cloak_os));
+      strlcpy(cloak_osver, "10.3-STABLE", sizeof(cloak_osver));
+      break;
+    case 6:
+      strlcpy(cloak_os, "FreeBSD", sizeof(cloak_os));
+      strlcpy(cloak_osver, "11.0-RELEASE", sizeof(cloak_osver));
+      break;
+    case 7:
+      strlcpy(cloak_os, "NetBSD", sizeof(cloak_os));
+      strlcpy(cloak_osver, "6.0_STABLE", sizeof(cloak_osver));
+      break;
+    case 8:
+      strlcpy(cloak_os, "OpenBSD", sizeof(cloak_os));
+      strlcpy(cloak_osver, "5.6", sizeof(cloak_osver));
+      break;
+    case 9:
+      strlcpy(cloak_os, "SunOS", sizeof(cloak_os));
+      strlcpy(cloak_osver, "5.10", sizeof(cloak_osver));
+      break;
+    case 10:
+      strlcpy(cloak_os, "SunOS", sizeof(cloak_os));
+      strlcpy(cloak_osver, "5.11", sizeof(cloak_osver));
+      break;
     }
     strlcpy(cloak_host, "login", sizeof(cloak_host));
-  }
+//  }
   if ((p = strchr(cloak_host, '.')))
     *p = 0;
 
-  switch (randint(4)) {
+  switch (randint(5)) {
   case 0:
     strlcpy(cloak_bxver, "1.1-final", sizeof(cloak_bxver));
     break;
@@ -722,6 +760,9 @@ void ctcp_init()
     break;
   case 3:
     strlcpy(cloak_bxver, "1.0c20cvs+", sizeof(cloak_bxver));
+    break;
+  case 4:
+    strlcpy(cloak_bxver, "1.2.1+", sizeof(cloak_bxver));
     break;
   }
   scriptchanged();
