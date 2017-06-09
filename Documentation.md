@@ -12,6 +12,6 @@
 * [Homechan](http://wraith.botpack.net/wiki/Homechan)
 * [HubSetup](http://wraith.botpack.net/wiki/HubSetup)
 * [PackConfig](http://wraith.botpack.net/wiki/PackConfig)
-* [PackConfigExampleReleases](http://wraith.botpack.net/wiki/PackConfig) Releases
+* [PackConfigExample](http://wraith.botpack.net/wiki/PackConfig) Releases
 * [Updating](http://wraith.botpack.net/wiki/Updating)
 * [WhoisRestrictions](http://wraith.botpack.net/wiki/WhoisRestrictions)
