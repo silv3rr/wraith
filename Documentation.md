@@ -3,7 +3,7 @@
 * [BotnetSetup](http://wraith.botpack.net/wiki/BotnetSetup) Setting up your botnet
 * [Compiling](http://wraith.botpack.net/wiki/Compiling)
 * [Components](http://wraith.botpack.net/wiki/Components)
-* [CookieOps](http://wraith.botpack.net/wiki/CookieOps) CookieOps Explanation
+* [CookieOps](http://wraith.botpack.net/wiki/CookieOps) Explanation
 * [Debugging](http://wraith.botpack.net/wiki/Debugging) Debugging Guide
 * [Features](http://wraith.botpack.net/wiki/Features) Wraith Features
 * [FrequentlyAskedQuestions](http://wraith.botpack.net/wiki/FrequentlyAskedQuestions) General
