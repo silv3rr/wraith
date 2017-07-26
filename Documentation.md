@@ -5,7 +5,7 @@
 * [Components](http://wraith.botpack.net/wiki/Components)
 * [CookieOps](http://wraith.botpack.net/wiki/CookieOps) Explanation
 * [Debugging](http://wraith.botpack.net/wiki/Debugging) Debugging Guide
-* [Features](http://github.com/wraith/wraith/blob/master/FEATURES.md) Wraith Features
+* [Features](FEATURES.md) Wraith Features
 * [FrequentlyAskedQuestions](http://wraith.botpack.net/wiki/FrequentlyAskedQuestions) General
 * [GettingStarted](http://wraith.botpack.net/wiki/GettingStarted)
 * [Groups](http://wraith.botpack.net/wiki/Groups)
