@@ -7,7 +7,7 @@
 * [Debugging](http://wraith.botpack.net/wiki/Debugging) Debugging Guide
 * [Features](FEATURES.md) Wraith Features
 * [FrequentlyAskedQuestions](http://wraith.botpack.net/wiki/FrequentlyAskedQuestions) General
-* [GettingStarted](http://wraith.botpack.net/wiki/GettingStarted)
+* [GettingStarted](http://github.com/wraith/wraith/wiki/GettingStarted)
 * [Groups](http://wraith.botpack.net/wiki/Groups)
 * [Homechan](http://wraith.botpack.net/wiki/Homechan)
 * [HubSetup](http://wraith.botpack.net/wiki/HubSetup)
