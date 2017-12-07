@@ -2,12 +2,18 @@
   * Require C++11 compiler support (G++ 4.7+, clang32+)
 
 # maint
+
+# 1.4.8
   * Support Debian/Ubuntu's libssl1.0.0[:i386] package.
   * Improve hints about OpenSSL library packages to install.
   * Fix AddressSanitizer [1] being enabled by default causing 16TB+ of VM to be
     used.  On most systems this was harmless since the memory was not actually
     used.  This feature is still enabled by default for debug binaries.
     [1] http://clang.llvm.org/docs/AddressSanitizer.html
+  * Fix './wraith -C' file being immediately modified when saving on
+    FreeBSD (#94)
+  * Support FreeBSD closefrom(2)
+  * Use vfork(2) in some places
 
 # 1.4.7
   * Update server list, 'set -yes servers -' and 'set -yes servers6 -' to get new list.

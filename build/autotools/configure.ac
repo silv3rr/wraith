@@ -33,6 +33,7 @@ EGG_CHECK_CCPIPE
 CXX_FLAG_CHECK([CXXFLAGS], [-fcolor-diagnostics], [colordiagnostics])
 #CXX_FLAG_CHECK([CXXFLAGS], [-Qunused-arguments], [unusedarguments])
 CXX_FLAG_CHECK([CXXFLAGS], [-Wno-invalid-source-encoding], [invalid_source_encoding])
+CXX_FLAG_CHECK([CXXFLAGS], [-Wno-narrowing], [wnonarrowing])
 CXX_FLAG_CHECK([CXXFLAGS], [-fstack-protector], [stackprotector])
 CXX_FLAG_CHECK([CXXFLAGS], [-fstack-protector-strong], [stackprotectorstrong])
 if [[ "${ax_cv_prog_cc_stackprotectorstrong}" = "yes" ]]; then
@@ -221,7 +222,7 @@ AC_CHECK_FUNCS([getrusage getpassphrase posix_madvise madvise])
 AC_CHECK_FUNCS([memmem random snprintf srandom gettime])
 #checkpoint
 AC_CACHE_SAVE
-AC_CHECK_FUNCS([vsnprintf prctl procctl])
+AC_CHECK_FUNCS([vsnprintf prctl procctl closefrom])
 
 #autoscan suggested this....
 #These are recommended by autoscan, but no code supports it currently

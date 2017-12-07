@@ -193,6 +193,7 @@ confedit()
   um = umask(077);
 
   autowrote = writeconf(NULL, tmpconf.fd, CONF_COMMENT);
+  fsync(tmpconf.fd);
   fstat(tmpconf.fd, &st);		/* for file modification compares */
 //  tmpconf.my_close();
 
@@ -223,7 +224,7 @@ confedit()
   signal(SIGCONT, SIG_DFL);
 
   my_gettime(&ts1);
-  switch (pid = fork()) {
+  switch (pid = vfork()) {
     case -1:
       fatal(STR("Cannot fork"), 0);
     case 0:
@@ -231,8 +232,8 @@ confedit()
       /* child */
       execlp(editor, editor, tmpconf.file, (char*)NULL);
       perror(editor);
-      exit(1);
-     /*NOTREACHED*/}
+      _exit(127);
+    }
     default:
       /* parent */
       break;
@@ -407,7 +408,7 @@ checkpid(const char *nick, conf_bot *bot)
     }
 
 
-    if (bufp[0] && pid && can_stat(bufp) && (getpid() == pid) &&
+    if (bufp[0] && pid && can_stat(bufp) && (mypid == pid) &&
         !strncasecmp(nick, origbotnick, HANDLEN)) {
       socksfile = strdup(bufp);
       return 0;
