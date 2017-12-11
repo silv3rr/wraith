@@ -7,7 +7,7 @@ Changes:
 - added botident option to conf which spoofs ident to whatever you want (by default it sets ident to ~/.ispoof file)
 - few small changes so it compiles on Debian (tested ok with gcc 4.9, gcc6 does not seem to work)
 
-__These changes are for this fork only.__
+__These changes are for this fork only__
 
 [![Build Status](https://travis-ci.org/wraith/wraith.png?branch=master)](https://travis-ci.org/wraith/wraith)
 
