@@ -803,7 +803,6 @@ char *my_username()
 
 char *my_botident(bool useconf)
 {
-
   static char botident_buf[DIRMAX] = "";
 
   if (!botident_buf[0]) {
@@ -811,8 +810,7 @@ char *my_botident(bool useconf)
        simple_snprintf(botident_buf, sizeof botident_buf, "%s", conf.botident);
     else {
       FILE *f;
-      char dotispoof[1024] = "";
-      char ispoof[DIRMAX] = "";
+      char dotispoof[DIRMAX] = "", ispoof[512] = "";
       if (!conf.homedir)
         str_redup(&conf.homedir, homedir());
       simple_snprintf(dotispoof, sizeof(dotispoof), "%s/.ispoof", conf.homedir);
@@ -823,7 +821,7 @@ char *my_botident(bool useconf)
         }
         fclose(f);
         remove_crlf(ispoof);
-        if (ispoof && strlen(ispoof))
+        if (ispoof[0] && strlen(ispoof))
           strlcpy(botident_buf, ispoof, sizeof(botident_buf));
       }
     }
