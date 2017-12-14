@@ -34,6 +34,7 @@ usage()
     echo "    -d        Builds a debug package."
     echo "    -n        Do not package the binaries."
     echo "    -P        For development (Don't compile/rm binaries)"
+    echo
 }
 
 debug=0
@@ -66,6 +67,8 @@ fi
 
 if test -z "$1"; then
  usage
+ echo 'You can run "scripts/packcfg.pl" to generate pack config' >&2
+ echo
  exit 1
 fi
 
@@ -133,7 +136,7 @@ _build()
 {
  if [ $compile = "1" ]; then
   echo "[*] Building ${dmake}${tb}..."
-  make ${dmake}${tb}
+  make ${dmake}
   if ! test -f ${tb}; then
     echo "[!] ${dmake}${tb} build failed"
     exit 1
