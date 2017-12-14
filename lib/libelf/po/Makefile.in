@@ -17,6 +17,8 @@
 
 # @(#) $Id: Makefile.in,v 1.18 2008/05/23 08:16:46 michael Exp $
 
+datarootdir = @datarootdir@
+
 instroot =
 
 prefix = @prefix@
