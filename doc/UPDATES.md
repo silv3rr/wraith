@@ -3,6 +3,13 @@
 
 # maint
 
+# 1.4.8.1-slv
+  * Added [Documentation.md](Documentation.md)
+  * Added [scripts/packcfg.pl](scripts/packcfg.pl) Generates pack config for Wraith (hashes and salts).
+  * Always cloak os version (also added a few new OS versions).
+  * Added "botident" option to conf which spoofs ident to whatever you want. By default it sets ident to ~/.ispoof file.
+  * Made a few small changes so it compiles on Debian. Tested ok with gcc 4.9, gcc6 does not seem to work.
+
 # 1.4.8
   * Support Debian/Ubuntu's libssl1.0.0[:i386] package.
   * Improve hints about OpenSSL library packages to install.
