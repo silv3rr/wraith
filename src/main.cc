@@ -90,14 +90,14 @@ const char	*branch = BRANCH;
 #error BUILDTS unable to be determined. Gmake required. Source may also be incorrect.
 #endif
 const char	*egg_version = VERSION;
-char	git_version[50] = "";
+char	        git_version[50] = "";
 
 bool	used_B = 0;		/* did we get started with -B? */
 bool	safe_to_log = 0;
 int 	role;
 bool 	loading = 0;
 int	default_flags = 0;	/* Default user flags and */
-bool     have_linked_to_hub = 0;  /* Have we ever been linked to a hub? */
+bool    have_linked_to_hub = 0; /* Have we ever been linked to a hub? */
 int	default_uflags = 0;	/* Default userdefinied flags for people
 				   who say 'hello' or for .adduser */
 int     do_restart = 0;
@@ -127,6 +127,9 @@ static char do_killbot[21] = "";
 static int kill_sig;
 static char *update_bin = NULL;
 char *socksfile = NULL;
+
+bool	display_help = 1;	/* set to 0 to hide help output */
+bool	display_vers = 1;	/* set to 0 to hide version output */
 
 static char *getfullbinname(const char *argv_zero)
 {
@@ -312,7 +315,7 @@ static void show_help()
   printf(format, STR("-D"), STR("Enables debug mode (see -n)"));
   printf(format, STR("-E [error code]"), STR("Display Error codes english translation"));
 /*  printf(format, STR("-g <file>"), STR("Generates a template config file"));
-  printf(format, STR("-G <file>"), STR("Generates a custom config for the box"));
+    printf(format, STR("-G <file>"), STR("Generates a custom config for the box"));
 */
   printf(format, STR("-h"), STR("Display this help listing"));
   printf(format, STR("-k <botname>"), STR("Terminates (botname) with kill -9 (see also: -r)"));
@@ -378,7 +381,12 @@ static void dtx_arg(int& argc, char *argv[])
         do_confedit = 1;
         break;
       case 'h':
-        show_help();
+        if (display_help) {
+          show_help();
+        } else {
+          exit(0);
+          break;
+        }
       case 'k':		/* kill bot */
         kill_sig = SIGKILL;
         strlcpy(do_killbot, optarg, sizeof do_killbot);
@@ -430,26 +438,28 @@ static void dtx_arg(int& argc, char *argv[])
           exit(0);
       case 'v':
       {
-        char date[50] = "";
+        if (display_vers) {
+          char date[50] = "";
 
-        strftime(date, sizeof date, "%c %Z", gmtime(&buildts));
-	printf(STR("%s\nBuild Date: %s (%s%li%s)\n"), version, date, BOLD(-1), (long)buildts, BOLD_END(-1));
-        printf(STR("BuildOS: %s%s%s BuildArch: %s%s%s\n"), BOLD(-1), BUILD_OS, BOLD_END(-1), BOLD(-1), BUILD_ARCH, BOLD_END(-1));
-        printf(STR("- http://wraith.botpack.net -\n"));
+          strftime(date, sizeof date, "%c %Z", gmtime(&buildts));
+	  printf(STR("%s\nBuild Date: %s (%s%li%s)\n"), version, date, BOLD(-1), (long)buildts, BOLD_END(-1));
+          printf(STR("BuildOS: %s%s%s BuildArch: %s%s%s\n"), BOLD(-1), BUILD_OS, BOLD_END(-1), BOLD(-1), BUILD_ARCH, BOLD_END(-1));
+          printf(STR("- http://wraith.botpack.net -\n"));
 #ifdef DEBUG
-	printf(STR("pack: %zu conf: %zu settings_t: %zu prefix: %zu pad: %zu/%zu needed padding: %zu/%zu\n"),
-            SIZE_PACK,
-            SIZE_CONF,
-            SIZE_SETTINGS,
-            PREFIXLEN,
-            SIZE_PAD_PACK,
-            SIZE_PAD,
-            (SIZE_PAD_ALIGN - ((SIZE_PACK - SIZE_PAD_PACK) % SIZE_PAD_ALIGN)) % SIZE_PAD_ALIGN,
-            (SIZE_PAD_ALIGN - ((SIZE_SETTINGS - SIZE_PAD) % SIZE_PAD_ALIGN)) % SIZE_PAD_ALIGN
-        );
+	  printf(STR("pack: %zu conf: %zu settings_t: %zu prefix: %zu pad: %zu/%zu needed padding: %zu/%zu\n"),
+              SIZE_PACK,
+              SIZE_CONF,
+              SIZE_SETTINGS,
+              PREFIXLEN,
+              SIZE_PAD_PACK,
+              SIZE_PAD,
+              (SIZE_PAD_ALIGN - ((SIZE_PACK - SIZE_PAD_PACK) % SIZE_PAD_ALIGN)) % SIZE_PAD_ALIGN,
+              (SIZE_PAD_ALIGN - ((SIZE_SETTINGS - SIZE_PAD) % SIZE_PAD_ALIGN)) % SIZE_PAD_ALIGN
+          );
 #endif
-        if (settings.dynamic_initialized[0]) {
-          bin_to_conf();
+          if (settings.dynamic_initialized[0]) {
+            bin_to_conf();
+          }
         }
 	exit(0);
       }
