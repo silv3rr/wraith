@@ -2,6 +2,10 @@
   * Require C++11 compiler support (G++ 4.7+, clang32+)
 
 # maint
+  * Fix various compile warnings
+  * Fix ptrace detection on OpenBSD (after 1.4.6 regression for the Linux fix)
+  * Update server list, 'set -yes servers -' and 'set -yes servers6 -' to get new list.
+  * Fix command executions.
 
 # 1.4.8.1-slv
   * Added [Documentation.md](../Documentation.md)
