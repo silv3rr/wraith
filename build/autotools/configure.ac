@@ -47,7 +47,8 @@ if [[ "${ax_cv_prog_cc_Og}" = "no" ]]; then
 fi
 CXX_FLAG_CHECK_LINK([DEBCXXFLAGS], [-fsanitize=address], [fsanitize_address])
 if [[ "${ax_cv_prog_cc_fsanitize_address}" = "yes" ]]; then
-  DEBLDFLAGS="${DEBLDFLAGS} -fsanitize=address"
+#  DEBLDFLAGS="${DEBLDFLAGS} -fsanitize=address"
+  DEBLDFLAGS="${DEBLDFLAGS}"
 fi
 CXX_FLAG_CHECK([DEBCXXFLAGS], [-fstack-protector-all], [stackprotectorall])
 CXX_FLAG_CHECK([DEBCXXFLAGS], [-Wconditional-uninitialized], [w_conditional_uninitialized])
@@ -141,7 +142,8 @@ tcllibpaths="$HOME/lib $HOME/tcl/lib \
              /usr/local/lib/tcl8.4 /usr/lib/tcl8.4 \
              /usr/local/lib/tcl8.3 /usr/lib/tcl8.3 \
              /usr/local/pkgs/tcl/lib /sys/lib /usr/pkg/lib \
-             /usr/i486-linuxaout/lib /beos/system/lib $HOME"
+             /usr/i486-linuxaout/lib /beos/system/lib \
+             /usr/lib/i386-linux-gnu /usr/lib/x86_64-linux-gnu $HOME"
 
 # Tcl header filenames and search paths.
 tclheadernames="tcl.h"
