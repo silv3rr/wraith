@@ -60,6 +60,7 @@ using std::swap;
 #include <bdlib/src/HashTable.h>
 #include <bdlib/src/base64.h>
 #include <deque>
+#include <vector>
 
 #include <stdarg.h>
 
@@ -91,7 +92,7 @@ static bool ban_fun = 1;
 static bool prevent_mixing = 1;  /* To prevent mixing old/new modes */
 bool include_lk = 1;      /* For correct calculation
                                  * in real_add_mode. */
-bd::HashTable<bd::String, unsigned long> bot_counters;
+static bd::HashTable<bd::String, unsigned long> bot_counters;
 unsigned long my_cookie_counter = 0;
 
 static std::deque<bd::String> chained_who;
@@ -677,11 +678,6 @@ getin_request(char *botnick, char *code, char *par)
     return;
   }
 
-  if (connect_bursting) {
-    putlog(LOG_GETIN, "*", "%sreq from %s/%s %s %s - I'm in connect burst mode.", type, botnick, nick, desc, chan->dname);
-    return;
-  }
-
   if (server_lag > lag_threshold) {
     putlog(LOG_GETIN, "*", "%sreq from %s/%s %s %s - I'm too lagged", type, botnick, nick, desc, chan->dname);
     return;
@@ -786,6 +782,39 @@ getin_request(char *botnick, char *code, char *par)
 
     putlog(LOG_GETIN, "*", "opreq from %s/%s on %s - Opped", botnick, nick, chan->dname);
   } else if (what[0] == 'i') {
+    if (mem) {
+      putlog(LOG_GETIN, "*", "inreq from %s/%s for %s - %s is already on %s", botnick, nick, chan->dname, nick, chan->dname);
+      return;
+    }
+
+    get_user_flagrec(u, &fr, chan->dname, chan);
+
+    if (unlikely(!chk_op(fr, chan) || chan_kick(fr) || glob_kick(fr))) {
+      putlog(LOG_GETIN, "*", "inreq from %s/%s for %s - %s doesn't have acces for chan.", botnick, nick, chan->dname, botnick);
+      return;
+    }
+
+    char uip[UHOSTLEN] = "";
+    tmp = newsplit(&par);		/* userip */
+    if (tmp[0])
+      simple_snprintf(uip, sizeof uip, "%s!%s", nick, tmp);
+
+    char chankey[128] = "";
+    tmp = newsplit(&par);		/* what the bot thinks the key is */
+    if (tmp[0])
+      simple_snprintf(chankey, sizeof(chankey), "%s", tmp);
+
+    if (chan->channel.mode & CHANKEY && chan->channel.key[0] &&
+        (!chankey[0] || strcmp(chan->channel.key, chankey))) {
+      char *key = chan->channel.key[0] ? chan->channel.key : NULL;
+      size_t siz = strlen(chan->dname) + strlen(key ? key : 0) + 6 + 1;
+      tmp = (char *) calloc(1, siz);
+      simple_snprintf(tmp, siz, "gi K %s %s", chan->dname, key ? key : "");
+      putbot(botnick, tmp);
+      putlog(LOG_GETIN, "*", "inreq from %s/%s for %s - Sent key (%s)", botnick, nick, chan->dname, key ? key : "");
+      free(tmp);
+    }
+
     // Should I respond to this request?
     // If there's 18 eligible bots in the channel, and in-bots is 2, I have a 2/18 chance of replying.
     int eligible_bots = 0;
@@ -807,28 +836,6 @@ getin_request(char *botnick, char *code, char *par)
       return;
     }
 
-    if (mem) {
-      putlog(LOG_GETIN, "*", "inreq from %s/%s for %s - %s is already on %s", botnick, nick, chan->dname, nick, chan->dname);
-      return;
-    }
-
-    get_user_flagrec(u, &fr, chan->dname, chan);
-
-    if (unlikely(!chk_op(fr, chan) || chan_kick(fr) || glob_kick(fr))) {
-      putlog(LOG_GETIN, "*", "inreq from %s/%s for %s - %s doesn't have acces for chan.", botnick, nick, chan->dname, botnick);
-      return;
-    }
-
-    if (chan->channel.mode & CHANKEY) {
-      char *key = chan->channel.key[0] ? chan->channel.key : chan->key_prot;
-      size_t siz = strlen(chan->dname) + strlen(key ? key : 0) + 6 + 1;
-      tmp = (char *) calloc(1, siz);
-      simple_snprintf(tmp, siz, "gi K %s %s", chan->dname, key ? key : "");
-      putbot(botnick, tmp);
-      putlog(LOG_GETIN, "*", "inreq from %s/%s for %s - Sent key (%s)", botnick, nick, chan->dname, key ? key : "");
-      free(tmp);
-    }
-
     if (!me_op(chan)) {
       putlog(LOG_GETIN, "*", "inreq from %s/%s for %s - I haven't got ops", botnick, nick, chan->dname);
       return;
@@ -842,11 +849,6 @@ getin_request(char *botnick, char *code, char *par)
         putlog(LOG_GETIN, "*", "inreq from %s/%s for %s - Raised limit", botnick, nick, chan->dname);
       }
     }
-
-    char uip[UHOSTLEN] = "";
-    tmp = newsplit(&par);		/* userip */
-    if (tmp[0])
-      simple_snprintf(uip, sizeof uip, "%s!%s", nick, tmp);
 
     struct maskrec **mr = NULL, *tmr = NULL;
 
@@ -1112,7 +1114,7 @@ request_in(struct chanset_t *chan)
     return;
   }
 
-  bd::String request(bd::String::printf("gi i %s %s %s!%s %s", chan->dname, botname, botname, botuserhost, botuserip));
+  bd::String request(bd::String::printf("gi i %s %s %s!%s %s %s", chan->dname, botname, botname, botuserhost, botuserip, chan->channel.key[0] ? chan->channel.key : ""));
   putallbots(request.c_str());
   putlog(LOG_GETIN, "*", "Requested help to join %s", chan->dname);
 }
@@ -1166,6 +1168,8 @@ killmember(struct chanset_t *chan, char *nick, bool cacheMember)
   else
     chan->channel.member = x->next;
 
+  chan->channel.hashed_members->remove(*x->rfc_nick);
+
   if (cacheMember) {
     x->last = now;
     x->user = NULL;
@@ -1193,11 +1197,8 @@ killmember(struct chanset_t *chan, char *nick, bool cacheMember)
     }
     putlog(LOG_MISC, "*", "(!) actually I know of %d members.", chan->channel.members);
   }
-  if (unlikely(!chan->channel.member)) {
-    chan->channel.member = (memberlist *) calloc(1, sizeof(memberlist));
-    chan->channel.member->nick[0] = 0;
-    chan->channel.member->next = NULL;
-  }
+  if (unlikely(!chan->channel.member))
+    chan->channel.member = new memberlist;
   return 1;
 }
 
@@ -1230,7 +1231,7 @@ static void member_update_from_cache(struct chanset_t* chan, memberlist *m) {
 bool
 me_voice(const struct chanset_t *chan)
 {
-  memberlist *mx = ismember(chan, botname);
+  const memberlist *mx = ismember(chan, botname);
 
   if (!mx)
     return 0;
@@ -1244,6 +1245,7 @@ me_voice(const struct chanset_t *chan)
 /* Check if there are any ops on the channel. Returns boolean 1 or 0.
  */
 static bool
+__attribute__((pure))
 any_ops(struct chanset_t *chan)
 {
   memberlist *x = NULL;
@@ -1585,25 +1587,25 @@ check_expired_chanstuff(struct chanset_t *chan)
       }
 
       if (im_opped) {
-        if (dovoice(chan) && !loading && !chan_hasop(m)) {      /* autovoice of +v users if bot is +y */
+        if ((chan->role & (ROLE_OP|ROLE_VOICE)) && !loading && !chan_hasop(m)) {      /* autovoice of +v users if bot is +y */
           get_user_flagrec(m->user, &fr, chan->dname, chan);
 
           /* Autoop */
-          if (!chan_sentop(m) && chk_autoop(m, fr, chan)) {
+          if ((chan->role & ROLE_OP) && !chan_sentop(m) && chk_autoop(m, fr, chan)) {
             do_op(m, chan, 0, 0);
           }
 
           /* +v or +voice */
-          if (!chan_hasvoice(m) && !chan_sentvoice(m)) {
+          if ((chan->role & ROLE_VOICE) && !chan_hasvoice(m) && !chan_sentvoice(m)) {
             member_getuser(m, 1);
 
             if (m->user) {
               if (!(m->flags & EVOICE) &&
                   (
                    /* +voice: Voice all clients who are not flag:+q. If the chan is +voicebitch, only op flag:+v clients */
-                   (channel_voice(chan) && !chk_devoice(fr) && (!channel_voicebitch(chan) || (channel_voicebitch(chan) && chk_voice(fr, chan)))) ||
+                   (channel_voice(chan) && !chk_devoice(fr) && (!channel_voicebitch(chan) || (channel_voicebitch(chan) && chk_voice(m, fr, chan)))) ||
                    /* Or, if the channel is -voice but they still qualify to be voiced */
-                   (!channel_voice(chan) && !privchan(fr, chan, PRIV_VOICE) && chk_voice(fr, chan))
+                   (!channel_voice(chan) && !privchan(fr, chan, PRIV_VOICE) && chk_voice(m, fr, chan))
                   )
                  ) {
                 add_mode(chan, '+', 'v', m);
@@ -1625,23 +1627,25 @@ check_expired_chanstuff(struct chanset_t *chan)
       request_op(chan);
     }
 
-    if (role == 3) {
+    if (chan->role & ROLE_CHANMODE) {
       recheck_channel_modes(chan);
     }
   }
   // Clear out expired cached members
   if (chan->channel.cached_members && chan->channel.cached_members->size()) {
-    bd::Array<bd::String> member_uhosts(chan->channel.cached_members->keys());
-    for (size_t i = 0; i < member_uhosts.length(); ++i) {
-      const bd::String uhost(member_uhosts[i]);
-
-      m = (*chan->channel.cached_members)[uhost];
+    std::vector<bd::String> expired_hosts;
+    for (const auto& kv : *(chan->channel.cached_members)) {
+      auto& uhost = kv.first;
+      m = kv.second;
 
       // Delete the expired member
       if (now - m->last > wait_split) {
         delete_member(m);
-        chan->channel.cached_members->remove(uhost);
+        expired_hosts.push_back(uhost);
       }
+    }
+    for (const auto& uhost : expired_hosts) {
+      chan->channel.cached_members->remove(uhost);
     }
   }
 }
@@ -1759,6 +1763,113 @@ static void bot_release_nick (char *botnick, char *code, char *par) {
   release_nick(par);
 }
 
+static void rebalance_roles_chan(struct chanset_t* chan)
+{
+  bd::Array<bd::String> bots;
+  int *bot_bits;
+  short role;
+  size_t botcount, mappedbot, omappedbot, botidx, roleidx, rolecount;
+  struct flag_record fr = {FR_GLOBAL | FR_CHAN, 0, 0, 0 };
+  memberlist *m;
+
+  if (chan->needs_role_rebalance == 0) {
+    return;
+  }
+
+  if (channel_pending(chan) || !channel_active(chan) ||
+      !shouldjoin(chan) || (chan->channel.mode & CHANANON)) {
+    return;
+  }
+
+  /* Gather list of all bots in the channel. */
+  /* XXX: Keep this known in chan->bots */
+  for (m = chan->channel.member; m && m->nick[0]; m = m->next) {
+    if (!member_getuser(m) || !is_bot(m->user) || m->split) {
+      continue;
+    }
+
+    get_user_flagrec(m->user, &fr, chan->dname, chan);
+
+    /* Only consider bots that can be opped to be roled. */
+    if (!chk_op(fr, chan)) {
+      continue;
+    }
+    /* Only consider bots that have the roles feature. */
+    if (!(m->user->fflags & FEATURE_ROLES)) {
+      continue;
+    }
+    bots << m->user->handle;
+  }
+  botcount = bots.length();
+  if (botcount == 0)
+    return;
+  bot_bits = (int*)calloc(botcount, sizeof(bot_bits[0]));
+
+  for (roleidx = 0; role_counts[roleidx].name; roleidx++) {
+    /* Map this role to a bot */
+    omappedbot = mappedbot = roleidx % botcount;
+    rolecount = role_counts[roleidx].count;
+    role = role_counts[roleidx].role;
+
+    /* Does the mapped bot have the bit yet? If not, check next bot,
+     * on max restart at 0 but avoid looping back to start. */
+    while (rolecount > 0) {
+      if (!(bot_bits[mappedbot] & role)) {
+        bot_bits[mappedbot] |= role;
+        --rolecount;
+      }
+
+      /* Try next bot */
+      ++mappedbot;
+
+      /* Reached the end, wrap around. */
+      if (mappedbot == botcount) {
+        mappedbot = 0;
+      }
+      /* Reached original bot, cannot satisfy the role need. */
+      if (mappedbot == omappedbot) {
+        break;
+      }
+    }
+  }
+
+  /* Reset current bits */
+  chan->bot_roles->clear();
+  chan->role_bots->clear();
+
+  /* Take bitmask of assigned roles and apply to bots. */
+  for (botidx = 0; botidx < botcount; botidx++) {
+    if (bot_bits[botidx] != 0) {
+      (*chan->bot_roles)[bots[botidx]] = bot_bits[botidx];
+    }
+  }
+
+  /* Fill role_bots */
+  for (roleidx = 0; role_counts[roleidx].name; roleidx++) {
+    role = role_counts[roleidx].role;
+    /* Find all bots with this role */
+    for (botidx = 0; botidx < botcount; botidx++) {
+      if (bot_bits[botidx] & role) {
+        (*chan->role_bots)[role] << bots[botidx];
+      }
+    }
+  }
+
+  /* Set my own roles */
+  chan->role = (*chan->bot_roles)[conf.bot->nick];
+  free(bot_bits);
+  chan->needs_role_rebalance = 0;
+}
+
+static void rebalance_roles()
+{
+  struct chanset_t* chan = NULL;
+
+  for (chan = chanset; chan; chan = chan->next) {
+    rebalance_roles_chan(chan);
+  }
+}
+
 static cmd_t irc_bot[] = {
   {"gi", "", (Function) getin_request, NULL, LEAF},
   {"mr", "", (Function) mass_request, NULL, LEAF},
@@ -1770,6 +1881,7 @@ void
 irc_init()
 {
   timer_create_secs(60, "irc_minutely", (Function) irc_minutely);
+  timer_create_secs(10, "rebalance_roles", (Function) rebalance_roles);
 
   /* Add our commands to the imported tables. */
   add_builtins("dcc", irc_dcc);

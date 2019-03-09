@@ -16,11 +16,11 @@ EGG_SAVE_PARAMETERS
 dnl Search for newer gcc versions before older
 #AC_REQUIRE_CPP
 AC_LANG([C++])
-AC_PROG_CXX([g++6 g++5 g++49 g++-4.9 g++48 g++-4.8 g++47 g++-4.7 g++46 g++-4.6 g++ c++ CC cxx cc++])
+AC_PROG_CXX([clang++80 clang++70 clang++60 clang++50 clang++40 clang++39 clang++38 clang++37 clang++36 clang++35 clang++34 g++8 g++7 g++6 g++5 clang++ eg++ g++ c++ CC cxx cc++])
 CC="${CXX} -x c"
 AC_SUBST(CC)
 AC_REQUIRE_CPP
-AX_CXX_COMPILE_STDCXX_11([noext], [mandatory])
+AX_CXX_COMPILE_STDCXX_14([noext], [mandatory])
 EGG_CHECK_CC
 #CXX_RPATH_CHECK
 
@@ -32,8 +32,10 @@ EGG_CHECK_CCWALL
 EGG_CHECK_CCPIPE
 CXX_FLAG_CHECK([CXXFLAGS], [-fcolor-diagnostics], [colordiagnostics])
 #CXX_FLAG_CHECK([CXXFLAGS], [-Qunused-arguments], [unusedarguments])
-CXX_FLAG_CHECK([CXXFLAGS], [-Wno-invalid-source-encoding], [invalid_source_encoding])
-CXX_FLAG_CHECK([CXXFLAGS], [-Wno-narrowing], [wnonarrowing])
+CXX_FLAG_CHECK_NO([CXXFLAGS], [-Winvalid-source-encoding], [-Wno-invalid-source-encoding], [invalid_source_encoding])
+CXX_FLAG_CHECK_NO([CXXFLAGS], [-Wnarrowing], [-Wno-narrowing], [nonarrowing])
+CXX_FLAG_CHECK_NO([CXXFLAGS], [-Wcast-function-type], [-Wno-cast-function-type], [no_cast_function_type])
+CXX_FLAG_CHECK([CXXFLAGS], [-Wimplicit-fallthrough=0], [wimplicit_fallthrough])
 CXX_FLAG_CHECK([CXXFLAGS], [-fstack-protector], [stackprotector])
 CXX_FLAG_CHECK([CXXFLAGS], [-fstack-protector-strong], [stackprotectorstrong])
 if [[ "${ax_cv_prog_cc_stackprotectorstrong}" = "yes" ]]; then
@@ -47,10 +49,13 @@ if [[ "${ax_cv_prog_cc_Og}" = "no" ]]; then
 fi
 CXX_FLAG_CHECK_LINK([DEBCXXFLAGS], [-fsanitize=address], [fsanitize_address])
 if [[ "${ax_cv_prog_cc_fsanitize_address}" = "yes" ]]; then
-#  DEBLDFLAGS="${DEBLDFLAGS} -fsanitize=address"
-  DEBLDFLAGS="${DEBLDFLAGS}"
+##  DEBLDFLAGS="${DEBLDFLAGS} -fsanitize=address"
+#  DEBLDFLAGS="${DEBLDFLAGS}"
+  DEBLDFLAGS="${DEBLDFLAGS} -fsanitize=address"
+  DEBCXXFLAGS="${DEBCXXFLAGS} -D__SANITIZE_ADDRESS__"
 fi
 CXX_FLAG_CHECK([DEBCXXFLAGS], [-fstack-protector-all], [stackprotectorall])
+CXX_FLAG_CHECK([DEBCXXFLAGS], [-Wsuggest-attribute=pure -Wsuggest-attribute=const], [wsuggest_attribute])
 CXX_FLAG_CHECK([DEBCXXFLAGS], [-Wconditional-uninitialized], [w_conditional_uninitialized])
 CXX_FLAG_CHECK([LDFLAGS], [-static-libstdc++], [static_libstdcxx])
 #CXX_FLAG_CHECK([LDFLAGS], [-static-libgcc], [static_libgcc])

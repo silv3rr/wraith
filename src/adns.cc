@@ -169,7 +169,7 @@ static int read_resolv(char *fname);
 static void read_hosts(char *fname);
 static int get_dns_idx();
 //static void dns_resend_queries();
-static int cache_find(const char *);
+static int cache_find(const char *) __attribute__((pure));
 //static int dns_on_read(void *client_data, int idx, char *buf, int len);
 //static int dns_on_eof(void *client_data, int idx, int err, const char *errmsg);
 static void dns_read(int idx, char*, int&, bool blocking = 0);
@@ -418,7 +418,9 @@ static void egg_dns_send(char *query, int len, bool blocking)
 //	sockbuf_write(dns_idx, query, len);
 }
 
-dns_query_t *find_query(const char *host)
+static dns_query_t *
+__attribute__((pure))
+find_query(const char *host)
 {
 	dns_query_t *q = NULL;
 
@@ -892,7 +894,8 @@ static void cache_add(const char *query, bd::Array<bd::String> answer, int ttl)
 	ncache++;
 }
 
-static int cache_find(const char *query)
+static int
+cache_find(const char *query)
 {
 	int i;
 
@@ -1053,10 +1056,12 @@ int egg_dns_cancel(int id, int issue_callback)
 	return(0);
 }
 
-static int skip_name(unsigned char *ptr)
+static int
+__attribute__((pure))
+skip_name(const unsigned char *ptr)
 {
 	int len;
-	unsigned char *start = ptr;
+	const unsigned char *start = ptr;
 
 	while ((len = *ptr++) > 0) {
 		if (len > 63) {
@@ -1298,8 +1303,11 @@ void tell_dnsdebug(int idx)
 
 	for (int i = 0; i < ncache; i++) {
 		dprintf(idx, "cache(%d) %s expires in %ds\n", i, cache[i].query, (int) (cache[i].expiretime - now));
-		for (size_t n = 0; n < cache[i].answer->size(); n++)
-			dprintf(idx, "%zu: %s\n", n, bd::String((*(cache[i].answer))[n]).c_str());
+		size_t n = 0;
+		for (const auto& answer : *cache[i].answer) {
+			dprintf(idx, "%zu: %s\n", n, answer.c_str());
+			n++;
+		}
 	}
 }
 
@@ -1391,10 +1399,10 @@ bool valid_dns_id(int idx, int id)
 	return 0;
 }
 
-bd::String dns_find_ip(bd::Array<bd::String> ips, int af_type) {
-	for (size_t i = 0; i < ips.size(); ++i) {
-		if (is_dotted_ip(bd::String(ips[i]).c_str()) == af_type) {
-			return ips[i];
+bd::String dns_find_ip(const bd::Array<bd::String>& ips, int af_type) {
+	for (const auto& ip : ips) {
+		if (is_dotted_ip(ip.c_str()) == af_type) {
+			return ip;
 		}
 	}
 	return bd::String();

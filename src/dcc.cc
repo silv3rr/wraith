@@ -242,7 +242,9 @@ greet_new_bot(int idx)
     dcc[idx].status |= STAT_LEAF;
   dcc[idx].status |= STAT_LINKING;
 
-  dprintf(idx, "v 1001500 9 Wraith %s <%s> %d %li %s %s\n", egg_version, "-", conf.bot->localhub, (long)buildts, commit, egg_version);
+  dprintf(idx, "v 1001500 9 Wraith %s %d %d %li %s %s\n", egg_version,
+      conf.bot->u->fflags, conf.bot->localhub, (long)buildts, commit,
+      egg_version);
 
   for (int i = 0; i < dcc_total; i++) {
     if (dcc[i].type && dcc[i].type == &DCC_FORK_BOT) {
@@ -255,6 +257,8 @@ greet_new_bot(int idx)
 static void
 bot_version(int idx, char *par)
 {
+  char *work;
+
   dcc[idx].timeval = now;
   if (in_chain(dcc[idx].nick)) {
     dprintf(idx, "error Sorry, already connected.\n");
@@ -265,8 +269,6 @@ bot_version(int idx, char *par)
   }
 
   if ((par[0] >= '0') && (par[0] <= '9')) {
-    char *work = NULL;
-
     work = newsplit(&par);
     dcc[idx].u.bot->numver = atoi(work);
     /* old numver crap */
@@ -293,11 +295,22 @@ bot_version(int idx, char *par)
   char x[1024] = "", *vversion = NULL, *vcommit = NULL;
   int vlocalhub = -1;
   time_t vbuildts = 0;
+  int fflags = -1;
 
   strlcpy(dcc[idx].u.bot->version, par, 120);
   newsplit(&par);               /* 'ver' */
   newsplit(&par);               /* handlen */
-  newsplit(&par);               /* network */
+  /* fflags / (backward compat: network) */
+  if (par[0]) {
+    work = newsplit(&par);
+    /* Must support older bots which sent '<->' here for network. */
+    if (strcmp(work, "<->")) {
+      fflags = atoi(work);
+    } else {
+      /* Older bot doesn't have feature flags. */
+      fflags = 0;
+    }
+  }
   if (par[0])
     vlocalhub = atoi(newsplit(&par));
   if (par[0])
@@ -334,7 +347,7 @@ bot_version(int idx, char *par)
       dcc[idx].hub = 1;
     }
 
-    botnet_send_nlinked(idx, dcc[idx].nick, conf.bot->nick, '!', vlocalhub, vbuildts, vcommit, vversion);
+    botnet_send_nlinked(idx, dcc[idx].nick, conf.bot->nick, '!', vlocalhub, vbuildts, vcommit, vversion, fflags);
   } else {
         // This is now done in share_endstartup
         //have_linked_to_hub = 1;
@@ -346,7 +359,7 @@ bot_version(int idx, char *par)
 
   touch_laston(dcc[idx].user, "linked", now);
   dcc[idx].type = &DCC_BOT;
-  addbot(dcc[idx].nick, dcc[idx].nick, conf.bot->nick, '-', vlocalhub, vbuildts, vcommit, vversion);
+  addbot(dcc[idx].nick, dcc[idx].nick, conf.bot->nick, '-', vlocalhub, vbuildts, vcommit, vversion, fflags);
   simple_snprintf(x, sizeof x, "v 1001500");
   bot_share(idx, x);
   dprintf(idx, "el\n");
@@ -1132,7 +1145,8 @@ struct dcc_table DCC_CHAT_PASS = {
 /* Make sure ansi code is just for color-changing
  */
 static int
-check_ansi(char *v)
+__attribute__((pure))
+check_ansi(const char *v)
 {
   int count = 2;
 
@@ -1151,9 +1165,9 @@ check_ansi(char *v)
   return count;
 }
 
-int ansi_len(char *s)
+int ansi_len(const char *s)
 {
-  char *c = s;
+  const char *c = s;
   int count = 0;
 
   while (*c) {
@@ -1389,8 +1403,10 @@ detect_telnet_flood(char *floodhost)
   return 0;
 }
 
-static void dcc_telnet_dns_callback(int, void *, const char *, bd::Array<bd::String>);
-static void dcc_telnet_dns_forward_callback(int, void *, const char *, bd::Array<bd::String>);
+static void dcc_telnet_dns_callback(int, void *, const char *,
+    const bd::Array<bd::String>&);
+static void dcc_telnet_dns_forward_callback(int, void *, const char *,
+    const bd::Array<bd::String>&);
 
 static void
 dcc_telnet(int idx, char *buf, int ii)
@@ -1485,7 +1501,8 @@ dcc_telnet(int idx, char *buf, int ii)
     dcc[i].dns_id = dns_id;
 }
 
-static void dcc_telnet_dns_callback(int id, void *client_data, const char *ip, bd::Array<bd::String> hosts)
+static void dcc_telnet_dns_callback(int id, void *client_data, const char *ip,
+    const bd::Array<bd::String>& hosts)
 {
   // 64bit hacks
   long data = (long) client_data;
@@ -1511,23 +1528,24 @@ static void dcc_telnet_dns_callback(int id, void *client_data, const char *ip, b
   //Clear the ip (still saved in dcc[i].addr)
   dcc[i].host[0] = 0;
   if (hosts.size()) {
-    strlcpy(dcc[i].host, bd::String(hosts[0]).c_str(), sizeof(dcc[i].host));
+    strlcpy(dcc[i].host, hosts[0].c_str(), sizeof(dcc[i].host));
 
     //Check forward; only check the protocol of which this connection is.
     //If they connected on V4, lookup A, if V6, lookup AAAA
     int dns_type = DNS_LOOKUP_A;
     if (is_dotted_ip(iptostr(htonl(dcc[i].addr))) == AF_INET6)//Is this even valid?
       dns_type = DNS_LOOKUP_AAAA;
-    int dns_id = egg_dns_lookup(bd::String(hosts[0]).c_str(), 20, dcc_telnet_dns_forward_callback, (void *) (long) i, dns_type);
+    int dns_id = egg_dns_lookup(hosts[0].c_str(), 20, dcc_telnet_dns_forward_callback, (void *) (long) i, dns_type);
     if (dns_id >= 0)
       dcc[i].dns_id = dns_id;
   } else {
-    bd::Array<bd::String> empty;
+    const bd::Array<bd::String> empty{};
     dcc_telnet_dns_forward_callback(id, client_data, ip, empty);
   }
 }
 
-static void dcc_telnet_dns_forward_callback(int id, void *client_data, const char *host, bd::Array<bd::String> ips) {
+static void dcc_telnet_dns_forward_callback(int id, void *client_data,
+    const char *host, const bd::Array<bd::String>& ips) {
   // 64bit hacks
   long data = (long) client_data;
   int i = (int) data;
@@ -1551,10 +1569,10 @@ static void dcc_telnet_dns_forward_callback(int id, void *client_data, const cha
   }
 
   bool forward_matched = false;
-  bd::String look_for_ip(iptostr(htonl(dcc[i].addr)));
+  const auto& look_for_ip(iptostr(htonl(dcc[i].addr)));
   // Look for any match
-  for (size_t n = 0; n < ips.size(); ++n) {
-    if (ips[n] == look_for_ip) {
+  for (const auto& ip : ips) {
+    if (ip == look_for_ip) {
       forward_matched = true;
       break;
     }
@@ -1979,7 +1997,7 @@ struct dcc_table DCC_SOCKET = {
   NULL
 };
 
-void
+static void
 dcc_identwait(int idx, char *buf, int len)
 {
   /* Ignore anything now */

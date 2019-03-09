@@ -55,6 +55,7 @@ OBJS = auth.So \
 	adns.So \
 	response.So \
 	rfc1459.So \
+	RfcString.o \
 	set.So \
 	shell.So \
 	socket.So \
@@ -75,6 +76,7 @@ OBJS = auth.So \
 	compat/snprintf.o \
 	compat/memmem.o \
 	compat/memutil.o \
+	compat/openssl.o \
 	compat/strlcpy.o \
 	compat/strsep.o \
 	crypto/aes_util.o \

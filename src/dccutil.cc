@@ -217,14 +217,14 @@ colorbuf(char *buf, size_t len, int idx, size_t bufsiz)
 
 /* Dump a potentially super-long string of text.
  */
-void dumplots(int idx, const char *prefix, const bd::String data)
+void dumplots(int idx, const bd::String& prefix, const bd::String& data)
 {
   if (unlikely(!*data)) {
-    dprintf(idx, "%s\n", prefix);
+    dprintf(idx, "%s\n", prefix.c_str());
     return;
   }
 
-  const size_t max_data_len = 120 - strlen(prefix);
+  const size_t max_data_len = 120 - prefix.length();
   bd::Array<bd::String> lines = data.split('\n');
   size_t i = 0;
 
@@ -245,7 +245,7 @@ void dumplots(int idx, const char *prefix, const bd::String data)
         ++pos;
 
       if (bd::String(line(pos)).find("\n") != bd::String::npos) // Newline in remaining: dump it
-        dprintf(idx, "%s%s\n", prefix, bd::String(line(pos)).c_str());
+        dprintf(idx, "%s%s\n", prefix.c_str(), bd::String(line(pos)).c_str());
       else {
         const size_t tpos = line[pos] == ' ' ? pos + 1 : pos; // Trim out the space
         if (lines.length() - (i + 1) > 0) // Wrapped text: prepend to next line if possible
@@ -255,7 +255,7 @@ void dumplots(int idx, const char *prefix, const bd::String data)
       }
       line.resize(pos);
     }
-    dprintf(idx, "%s%s\n", prefix, line.c_str());
+    dprintf(idx, "%s%s\n", prefix.c_str(), line.c_str());
     ++i;
   }
 }
@@ -1119,17 +1119,9 @@ identd_close()
   }
 }
 
-bool
-valid_idx(int idx)
-{
-  if ((idx == -1) || (idx >= dcc_total) || (!dcc[idx].type))
-    return 0;
-  return 1;
-}
-
 int check_cmd_pass(const char *cmd, char *pass)
 {
-  struct cmd_pass *cp = NULL;
+  const struct cmd_pass *cp = NULL;
 
   for (cp = cmdpass; cp; cp = cp->next)
     if (!strcasecmp(cmd, cp->name)) {
@@ -1166,7 +1158,7 @@ int check_cmd_pass(const char *cmd, char *pass)
 
 int has_cmd_pass(const char *cmd)
 {
-  struct cmd_pass *cp = NULL;
+  const struct cmd_pass *cp = NULL;
 
   for (cp = cmdpass; cp; cp = cp->next)
     if (!strcasecmp(cmd, cp->name))

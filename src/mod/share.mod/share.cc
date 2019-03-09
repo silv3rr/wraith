@@ -655,7 +655,7 @@ share_change(int idx, char *par)
         return;
       }
 
-      if (uet->got_share) {
+      if (uet->got_share && uet != &USERENTRY_SET) {
         if (!(e = find_user_entry(uet, u))) {
           e = (struct user_entry *) calloc(1, sizeof(struct user_entry));
 
@@ -669,6 +669,14 @@ share_change(int idx, char *par)
           list_delete((struct list_type **) &(u->entries), (struct list_type *) e);
           free(e);
         }
+      } else if (uet == &USERENTRY_SET) {
+        /*
+         * set_set() chains down to set_user() which mimics
+         * the above and leads to deleting/freeing 'e' when
+         * already done in set_user(). set_gotshare() ignores
+         * e.
+         */
+        uet->got_share(u, NULL, par, idx);
       }
       noshare = 0;
     }
@@ -929,7 +937,7 @@ share_ufyes(int idx, char *par)
         dcc[idx].u.bot->uff_flags |= UFF_CHDEFAULT;
 
     if (strstr(par, "stream")) {
-      updatebot(-1, dcc[idx].nick, '+', 0, 0, 0, NULL);
+      updatebot(-1, dcc[idx].nick, '+', 0, 0, 0, NULL, -1);
       /* Start up a tbuf to queue outgoing changes for this bot until the
        * userlist is done transferring.
        */
@@ -1241,6 +1249,31 @@ shareout_prot(struct userrec *u, const char *format, ...)
   q_resync(s);
 }
 
+void
+shareout_hub(const char *format, ...)
+{
+  char s[601] = "";
+  int l;
+  va_list va;
+
+  va_start(va, format);
+
+  strlcpy(s, "s ", 3);
+  if ((l = egg_vsnprintf(s + 2, 509, format, va)) < 0)
+    s[2 + (l = 509)] = 0;
+  va_end(va);
+
+  for (int i = 0; i < dcc_total; i++) {
+    if (dcc[i].type && (dcc[i].type->flags & DCT_BOT) &&
+       (dcc[i].status & STAT_SHARE) && !(dcc[i].status & (STAT_GETTING | STAT_SENDING)) &&
+       /* only send to hubs */
+       dcc[i].hub) {
+      tputs(dcc[i].sock, s, l + 2);
+    }
+  }
+  q_resync(s);
+}
+
 static void
 shareout_but(int x, const char *format, ...)
 {
@@ -1445,7 +1478,7 @@ static void share_read_stream(int idx, bd::Stream& stream) {
   checkchans(1);                /* remove marked channels */
   var_parse_my_botset();
   reaffirm_owners();            /* Make sure my owners are +a   */
-  updatebot(-1, dcc[idx].nick, '+', 0, 0, 0, NULL);
+  updatebot(-1, dcc[idx].nick, '+', 0, 0, 0, NULL, -1);
   send_sysinfo();
 
   if (restarting && !keepnick) {
@@ -1555,7 +1588,7 @@ start_sending_users(int idx)
            i == DCCSEND_BADFN ? "BAD FILE" : i == DCCSEND_FEMPTY ? "EMPTY FILE" : "UNKNOWN REASON!");
     dcc[idx].status &= ~(STAT_SHARE | STAT_SENDING | STAT_AGGRESSIVE);
   } else {
-    updatebot(-1, dcc[idx].nick, '+', 0, 0, 0, NULL);
+    updatebot(-1, dcc[idx].nick, '+', 0, 0, 0, NULL, -1);
     dcc[idx].status |= STAT_SENDING;
     strlcpy(dcc[j].host, dcc[idx].nick, sizeof(dcc[j].host)); /* Store bot's nick */
     dprintf(idx, "s us %lu %d %lu\n", iptolong(getmyip()), dcc[j].port, dcc[j].u.xfer->length);
@@ -1580,7 +1613,7 @@ cancel_user_xfer(int idx, void *x)
   int i, j = -1;
   if (cancel_user_xfer_staylinked) {
     /* turn off sharing flag */
-    updatebot(-1, dcc[idx].nick, '-', 0, 0, 0, NULL);
+    updatebot(-1, dcc[idx].nick, '-', 0, 0, 0, NULL, -1);
   }
   flush_tbuf(dcc[idx].nick);
 

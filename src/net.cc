@@ -119,12 +119,12 @@ static int get_ip(char *hostname, union sockaddr_union *so, int dns_type)
   memset(so, 0, sizeof(union sockaddr_union));
   debug1("get_ip(%s)", hostname);
 
-  bd::Array<bd::String> hosts = dns_lookup_block(hostname, 10, dns_type);
+  const auto& hosts = dns_lookup_block(hostname, 10, dns_type);
   if (hosts.length() == 0)
     return -1;
 
   my_addr_t addr;
-  get_addr(bd::String(hosts[0]).c_str(), &addr);
+  get_addr(hosts[0].c_str(), &addr);
 
   if (addr.family == AF_INET) {
     so->sin.sin_family = AF_INET;
@@ -161,7 +161,7 @@ void init_net()
 
 /* Get my ipv? ip
  */
-char *myipstr(int af_type)
+const char *myipstr(int af_type)
 {
   if (cached_ip) {
 #ifdef USE_IPV6
@@ -183,12 +183,6 @@ char *myipstr(int af_type)
   }
 
   return "";
-}
-
-/* Get my ip number
- */
-in_addr_t getmyip() {
-  return cached_myip4_so.sin.sin_addr.s_addr;
 }
 
 /* see if it's necessary to set inaddr_any... because if we can't resolve, we die anyway */
@@ -846,13 +840,13 @@ int open_listen_addr_by_af(const char *ip, in_port_t *port, int af_def)
 /* Returns the given network byte order IP address in the
  * dotted format - "##.##.##.##"
  */
-char *iptostr(in_addr_t ip)
+const char *iptostr(in_addr_t ip)
 {
   static char ipbuf[32];
   struct in_addr a;
 
   a.s_addr = ip;
-  return (char *) inet_ntop(AF_INET, &a, ipbuf, sizeof(ipbuf));
+  return inet_ntop(AF_INET, &a, ipbuf, sizeof(ipbuf));
 }
 
 /* Short routine to answer a connect received on a socket made previously
@@ -1250,7 +1244,7 @@ int sockgets(char *s, int *len)
   }
   /* Might be necessary to prepend stored-up data! */
   if (socklist[ret].inbuf != NULL) {
-    *(socklist[ret].inbuf) += bd::String(xx);
+    *(socklist[ret].inbuf) += xx;
     if (socklist[ret].inbuf->length() < (SGRAB + 2)) {
       strlcpy(xx, socklist[ret].inbuf->c_str(), sizeof(xx));
       delete socklist[ret].inbuf;

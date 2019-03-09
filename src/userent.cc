@@ -62,6 +62,7 @@ void init_userent()
   add_entry_type(&USERENTRY_ADDED);
   add_entry_type(&USERENTRY_MODIFIED);
   add_entry_type(&USERENTRY_SET);
+  add_entry_type(&USERENTRY_FFLAGS);
 }
 
 void list_type_kill(struct list_type *t)
@@ -106,7 +107,9 @@ void def_write_userfile(bd::Stream& stream, const struct userrec *u, const struc
   stream << bd::String::printf("--%s %s\n", e->type->name, e->u.string);
 }
 
-void *def_get(struct userrec *u, struct user_entry *e)
+void *
+__attribute__((pure))
+def_get(struct userrec *u, struct user_entry *e)
 {
   return e->u.string;
 }
@@ -241,7 +244,7 @@ struct user_entry_type USERENTRY_ADDED = {
 
 static bool set_set(struct userrec *u, struct user_entry *e, void *buf)
 {
-  struct xtra_key *curr = (struct xtra_key *) e->u.extra, 
+  struct xtra_key *curr = e->u.xk,
                   *newxk = (struct xtra_key *) buf, *old = NULL;
 
   /* find the curr key if it exists */
@@ -251,6 +254,10 @@ static bool set_set(struct userrec *u, struct user_entry *e, void *buf)
       break;
     }
   }
+
+  /* Nothing to do if the old and new entry match. Can this even happen? */
+  if (old == newxk)
+    return 1;
   
   /* we will possibly free new below, so let's send the information to the botnet now */
   if (!noshare && !set_noshare) {
@@ -263,33 +270,23 @@ static bool set_set(struct userrec *u, struct user_entry *e, void *buf)
     }
   }
 
-  /* unset and bail out if the new data is empty and the old doesn't exist, why'd we even get this change? */
-  if (!old && (!newxk->data || !newxk->data[0])) {
-    /* or simply ... delete non-existant entry */
-    free(newxk->key);
-    free(newxk->data);
-    free(newxk);
-    return 1;
-  }
-
   /* if we have a new entry and an old entry.. or our new entry is empty -> clear out the old entry */
-  if ((old && old != newxk) || !newxk->data || !newxk->data[0]) {
+  if (old) {
     list_delete((struct list_type **) (&e->u.extra), (struct list_type *) old);
 
     free(old->key);
     free(old->data);
     free(old);
+    old = NULL;
   }
 
   /* add the new entry if it's not empty */
-  if (old != newxk && newxk->data) {
-    if (newxk->data[0]) {
-      list_insert((struct xtra_key **) (&e->u.extra), newxk);
-    } else {
-      free(newxk->data);
-      free(newxk->key);
-      free(newxk);
-    }
+  if (newxk->data && newxk->data[0]) {
+    list_insert((&e->u.xk), newxk);
+  } else {
+    free(newxk->data);
+    free(newxk->key);
+    free(newxk);
   }
   return 1;
 }
@@ -305,15 +302,14 @@ static bool set_unpack(struct userrec *u, struct user_entry *e)
   char *key = NULL, *data = NULL;
 
   while (curr) {
-    t = (struct xtra_key *) calloc(1, sizeof(struct xtra_key));
     data = curr->extra;
     key = newsplit(&data);
     if (data[0]) {
+      t = (struct xtra_key *) calloc(1, sizeof(struct xtra_key));
       t->key = strdup(key);
       t->data = strdup(data);
-      list_insert((struct xtra_key **) (&e->u.extra), t);
-    } else
-      free(t);
+      list_insert((&e->u.xk), t);
+    }
     curr = curr->next;
   }
 
@@ -324,7 +320,7 @@ static bool set_unpack(struct userrec *u, struct user_entry *e)
 static void set_display(int idx, struct user_entry *e, struct userrec *u)
 {
   if (conf.bot->hub) {
-    struct xtra_key *xk = (struct xtra_key *) e->u.extra;
+    struct xtra_key *xk = e->u.xk;
     struct flag_record fr = {FR_GLOBAL, 0, 0, 0 };
 
     dprintf(idx, "  BOTSET:\n");
@@ -341,6 +337,8 @@ static void set_display(int idx, struct user_entry *e, struct userrec *u)
 static bool set_gotshare(struct userrec *u, struct user_entry *e, char *buf, int idx)
 {
   char *name = newsplit(&buf);
+
+  ASSERT(e == NULL, "set_gotshare should not be passed a user_entry");
 
   if (!name || !name[0])
     return 1;
@@ -359,7 +357,7 @@ static bool set_gotshare(struct userrec *u, struct user_entry *e, char *buf, int
 static void set_write_userfile(bd::Stream& stream, const struct userrec *u, const struct user_entry *e, int idx)
 {
   int localhub = nextbot(u->handle);
-  struct xtra_key *x = (struct xtra_key *) e->u.extra;
+  struct xtra_key *x = e->u.xk;
 
   for (; x; x = x->next) {
     /*
@@ -377,7 +375,7 @@ static void set_write_userfile(bd::Stream& stream, const struct userrec *u, cons
 
 static bool set_kill(struct user_entry *e)
 {
-  struct xtra_key *x = (struct xtra_key *) e->u.extra, *y = NULL;
+  struct xtra_key *x = e->u.xk, *y = NULL;
 
   for (; x; x = y) {
     y = x->next;
@@ -470,6 +468,49 @@ struct user_entry_type USERENTRY_ARCH = {
  set_protected,
  botmisc_display,
  "ARCH"
+};
+
+bool fflags_unpack(struct userrec *u, struct user_entry *e)
+{
+  bool ret = def_unpack(u, e);
+  /* Cache the value in the user record. */
+  u->fflags = atoi((char *) def_get(u, e));
+  return ret;
+}
+
+bool fflags_set(struct userrec *u, struct user_entry *e, void *buf)
+{
+  bool ret;
+
+  /* No need to share since it is sent over the tandem/botlink. */
+  noshare = 1;
+  ret = def_set(u, e, buf);
+  noshare = 0;
+  /* Cache the value in the user record. */
+  u->fflags = atoi((char *) def_get(u, e));
+  return ret;
+}
+
+bool fflags_gotshare(struct userrec *u, struct user_entry *e, char *data,
+    int idx)
+{
+  /* Don't let another bot dictate our features. */
+  if (u == conf.bot->u) {
+    return false;
+  }
+  return def_gotshare(u, e, data, idx);
+}
+
+struct user_entry_type USERENTRY_FFLAGS = {
+ 0,
+ fflags_gotshare,
+ fflags_unpack,
+ def_write_userfile,
+ def_kill,
+ def_get,
+ fflags_set,
+ botmisc_display,
+ "FFLAGS"
 };
 
 void stats_add(struct userrec *u, int islogin, int op)
@@ -724,10 +765,8 @@ static bool laston_set(struct userrec *u, struct user_entry *e, void *buf)
     e->u.extra = (struct laston_info *) buf;
   }
 
-  /* FIXME: laston sharing is disabled until a better solution is found
   if (!noshare)
-    shareout("c LASTON %s %s %li\n", u->handle, li->lastonplace ? li->lastonplace : "-", (long) li->laston);
-  */
+    shareout_hub("c LASTON %s %s %li\n", u->handle, li->lastonplace ? li->lastonplace : "-", (long) li->laston);
 
   return 1;
 }
@@ -1013,33 +1052,6 @@ struct user_entry_type USERENTRY_HOSTS =
   "HOSTS"
 };
 
-bool list_append(struct list_type **h, struct list_type *i)
-{
-  for (; *h; h = &((*h)->next))
-    ;
-  *h = i;
-  return 1;
-}
-
-bool list_delete(struct list_type **h, struct list_type *i)
-{
-  for (; *h; h = &((*h)->next))
-    if (*h == i) {
-      *h = i->next;
-      return 1;
-    }
-  return 0;
-}
-
-bool list_contains(struct list_type *h, struct list_type *i)
-{
-  for (; h; h = h->next)
-    if (h == i) {
-      return 1;
-    }
-  return 0;
-}
-
 bool add_entry_type(struct user_entry_type *type)
 {
   struct userrec *u = NULL;
@@ -1058,7 +1070,7 @@ bool add_entry_type(struct user_entry_type *type)
   return 1;
 }
 
-struct user_entry_type *find_entry_type(char *name)
+struct user_entry_type *find_entry_type(const char *name)
 {
   struct user_entry_type *p = NULL;
 

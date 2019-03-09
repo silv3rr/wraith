@@ -44,7 +44,8 @@ typedef struct resolvstruct {
   bd::String* server;
 } resolv_member;
 
-static void resolv_member_callback(int id, void *client_data, const char *host, bd::Array<bd::String> ips)
+static void resolv_member_callback(int id, void *client_data, const char *host,
+    const bd::Array<bd::String>& ips)
 {
   resolv_member *r = (resolv_member *) client_data;
   struct chanset_t* chan = NULL;
@@ -68,7 +69,7 @@ static void resolv_member_callback(int id, void *client_data, const char *host, 
       pe = strchr(m->userhost, '@');
       if (pe && !strcmp(pe + 1, r->host)) {
         strlcpy(user, m->userhost, pe - m->userhost + 1);
-        simple_snprintf(m->userip, sizeof(m->userip), "%s@%s", user, bd::String(ips[0]).c_str());
+        simple_snprintf(m->userip, sizeof(m->userip), "%s@%s", user, ips[0].c_str());
         simple_snprintf(m->fromip, sizeof(m->fromip), "%s!%s", m->nick, m->userip);
         if (!m->user) {
           m->user = get_user_by_host(m->fromip);
@@ -84,7 +85,7 @@ static void resolv_member_callback(int id, void *client_data, const char *host, 
   }
 
   if (!matched_user && channel_rbl(chan))
-    resolve_to_rbl(chan, bd::String(ips[0]).c_str());
+    resolve_to_rbl(chan, ips[0].c_str());
 
   free(r->host);
   free(r->chan);
@@ -110,7 +111,8 @@ void resolve_to_member(struct chanset_t *chan, char *nick, char *host)
 }
 
 /* RBL */
-static void resolve_rbl_callback(int id, void *client_data, const char *host, bd::Array<bd::String> ips)
+static void resolve_rbl_callback(int id, void *client_data, const char *host,
+    const bd::Array<bd::String>& ips)
 {
   resolv_member *r = (resolv_member *) client_data;
   struct chanset_t* chan = NULL;
@@ -123,28 +125,36 @@ static void resolve_rbl_callback(int id, void *client_data, const char *host, bd
     return;
   }
 
-  sdprintf("RBL match for %s:%s: %s", chan->dname, r->host, bd::String(ips[0]).c_str());
+  sdprintf("RBL match for %s:%s: %s", chan->dname, r->host, ips[0].c_str());
 
   char s1[UHOSTLEN] = "";
   simple_snprintf(s1, sizeof(s1), "*!*@%s", r->host);
 
   bd::String reason = "Listed in RBL: " + *(r->server);
 
-  u_addmask('b', chan, s1, conf.bot->nick, reason.c_str(), now + (60 * (chan->ban_time ? chan->ban_time : 300)), 0);
+  if (!(use_exempts && (u_match_mask(global_exempts, s1) || u_match_mask(chan->exempts, s1)))) {
 
-  if (me_op(chan)) {
-    do_mask(chan, chan->channel.ban, s1, 'b');
+    u_addmask('b', chan, s1, conf.bot->nick, reason.c_str(), now + (60 * (chan->ban_time ? chan->ban_time : 300)), 0);
 
-    memberlist *m = NULL;
-    char *pe = NULL;
+    if (me_op(chan)) {
+      do_mask(chan, chan->channel.ban, s1, 'b');
 
-    /* Apply lookup results to all matching members by host */
-    for (m = chan->channel.member; m && m->nick[0]; m = m->next) {
-      if (!m->user && !chan_sentkick(m) && m->userip[0]) {
-        pe = strchr(m->userip, '@');
-        if (pe && !strcmp(pe + 1, r->host)) {
-          m->flags |= SENTKICK;
-          dprintf(DP_MODE, "KICK %s %s :%s%s\n", chan->name, m->nick, bankickprefix, reason.c_str());
+      memberlist *m = NULL;
+      char *pe = NULL;
+
+      /* Apply lookup results to all matching members by host */
+      for (m = chan->channel.member; m && m->nick[0]; m = m->next) {
+        if (!m->user && !chan_sentkick(m) && m->userip[0]) {
+          pe = strchr(m->userip, '@');
+          if (pe && !strcmp(pe + 1, r->host)) {
+            simple_snprintf(s1, sizeof(s1), "%s!%s", m->nick, m->userhost);
+            // Don't kick if exempted
+            if (!(use_exempts && (u_match_mask(global_exempts, s1) || u_match_mask(chan->exempts, s1)) &&
+                                  isexempted(chan, s1))) {
+              m->flags |= SENTKICK;
+              dprintf(DP_MODE, "KICK %s %s :%s%s\n", chan->name, m->nick, bankickprefix, reason.c_str());
+            }
+          }
         }
       }
     }
@@ -248,22 +258,16 @@ static memberlist *newmember(struct chanset_t *chan, char *nick)
 {
   memberlist *x = chan->channel.member, 
              *lx = NULL, 
-             *n = (memberlist *) calloc(1, sizeof(memberlist));
+             *n = new memberlist;
 
   /* This sorts the list */
   while (x && x->nick[0] && (rfc_casecmp(x->nick, nick) < 0)) {
     lx = x;
     x = x->next;
   }
-  /*
-   * redundant as calloc is used
-   n->next = NULL;
-   n->split = 0L;
-   n->last = 0L;
-   n->delay = 0L;
-   */
 
   strlcpy(n->nick, nick, sizeof(n->nick));
+  n->rfc_nick = std::make_shared<RfcString>(n->nick);
   n->hops = -1;
   if (!lx) {
     // Free the pseudo-member created in init_channel()
@@ -282,18 +286,19 @@ static memberlist *newmember(struct chanset_t *chan, char *nick)
   ++(chan->channel.members);
   n->floodtime = new bd::HashTable<flood_t, time_t>;
   n->floodnum  = new bd::HashTable<flood_t, int>;
+  (*chan->channel.hashed_members)[*n->rfc_nick] = n;
   return n;
 }
 
 void delete_member(memberlist* m) {
   delete m->floodtime;
   delete m->floodnum;
-  free(m);
+  delete m;
 }
 
 static bool member_getuser(memberlist* m, bool act_on_lookup) {
   if (!m) return 0;
-  if (!m->user && !m->tried_getuser) {
+  if (!m->user && !m->tried_getuser && !m->is_me) {
     m->user = get_user_by_host(m->from);
     if (!m->user && m->userip[0]) {
       m->user = get_user_by_host(m->fromip);
@@ -304,6 +309,9 @@ static bool member_getuser(memberlist* m, bool act_on_lookup) {
     if (act_on_lookup && m->user)
       check_this_user(m->user->handle, 0, NULL);
 
+  } else if (!m->user && m->is_me) {
+    m->user = conf.bot->u;
+    m->tried_getuser = 1;
   }
   return !(m->user == NULL);
 }
@@ -554,7 +562,8 @@ static bool detect_chan_flood(memberlist* m, const char *from, struct chanset_t 
   /* Do not punish non-existant channel members and IRC services like
    * ChanServ
    */
-  if (!chan || (which < 0) || (which >= FLOOD_CHAN_MAX) || !m)
+  if (!chan || (which < 0) || (which >= FLOOD_CHAN_MAX) || !m ||
+      !(chan->role & ROLE_FLOOD))
     return 0;
 
   /* Okay, make sure i'm not flood-checking myself */
@@ -892,12 +901,12 @@ static void refresh_ban_kick(struct chanset_t* chan, memberlist *m, const char *
   for (int cycle = 0; cycle < 2; cycle++) {
     for (maskrec* b = cycle ? chan->bans : global_bans; b; b = b->next) {
       if (wild_match(b->mask, user) || match_cidr(b->mask, user)) {
-        if (role == 1 && chan_hasop(m))
+        if ((chan->role & ROLE_DEOP) && chan_hasop(m))
           add_mode(chan, '-', 'o', m);	/* Guess it can't hurt.	*/
 	check_exemptlist(chan, user);
 	do_mask(chan, chan->channel.ban, b->mask, 'b');
 	b->lastactive = now;
-        if (role == 2) {
+        if (chan->role & ROLE_KICK) {
           char c[512] = "";		/* The ban comment.	*/
 
           if (b->desc && b->desc[0] != '@')
@@ -1219,17 +1228,17 @@ static void check_this_member(struct chanset_t *chan, memberlist *m,
        (!loading && userlist && chan_bitch(chan) && !chk_op(*fr, chan)) ) ) {
     /* if (target_priority(chan, m, 1)) */
       add_mode(chan, '-', 'o', m);
-  } else if (!chan_hasop(m) && dovoice(chan) && chk_autoop(m, *fr, chan)) {
+  } else if (!chan_hasop(m) && (chan->role & ROLE_OP) && chk_autoop(m, *fr, chan)) {
     do_op(m, chan, 1, 0);
   }
   if (dovoice(chan)) {
     if (chan_hasvoice(m) && !chan_hasop(m)) {
       /* devoice +q users .. */
-      if (chk_devoice(*fr) || (channel_voicebitch(chan) && !chk_voice(*fr, chan)))
+      if (chk_devoice(*fr) || (channel_voicebitch(chan) && !chk_voice(m, *fr, chan)))
         add_mode(chan, '-', 'v', m);
     } else if (!chan_hasvoice(m) && !chan_hasop(m)) {
       /* voice +v users */
-      if (chk_voice(*fr, chan)) {
+      if (chk_voice(m, *fr, chan)) {
         add_mode(chan, '+', 'v', m);
         if (m->flags & EVOICE)
           m->flags &= ~EVOICE;
@@ -1283,12 +1292,26 @@ void check_this_user(char *hand, int del, char *host)
     for (m = chan->channel.member; m && m->nick[0]; m = m->next) {
       bool check_member = 0;
       bool had_user = m->user ? 1 : 0;
+      struct userrec* u;
+      bool matches_hand = false;
+
       m->tried_getuser = 0;
       member_getuser(m);
-      struct userrec* u = m->user;
+      u = m->user;
+      if (u) {
+        matches_hand = (strcasecmp(u->handle, hand) == 0);
+      }
+
+      if (u && u->bot && matches_hand) {
+        /* Newly discovered bot, or deleted bot which fullfilled a role,
+         * need to rebalance. */
+        if (!del || (del && (*chan->bot_roles)[u->handle] != 0)) {
+          chan->needs_role_rebalance = 1;
+        }
+      }
       if (m->user && !had_user) // If a member is newly recognized, act on it
         check_member = 1;
-      else if (del != 2 && m->user && !strcasecmp(m->user->handle, hand)) { //general check / -user, match specified user
+      else if (del != 2 && m->user && matches_hand) { //general check / -user, match specified user
         check_member = 1;
         if (del == 1)
           u = NULL; // Pretend user doesn't exist when checking
@@ -1769,7 +1792,7 @@ static int got710(char *from, char *msg)
 
   chan = findchan(chname);
 
-  if (!chan->knock_flags || !dovoice(chan))
+  if (!chan->knock_flags || !(chan->role & ROLE_INVITE))
     return 0;
 
   struct userrec *u = get_user_by_host(uhost);
@@ -1785,7 +1808,7 @@ static int got710(char *from, char *msg)
 
   // PASSING: +o and op || +v and op/voice || user
   if (!((chan->knock_flags == CHAN_FLAG_OP && chk_op(fr, chan)) ||
-       (chan->knock_flags == CHAN_FLAG_VOICE && (chk_op(fr, chan) || chk_voice(fr, chan))) ||
+       (chan->knock_flags == CHAN_FLAG_VOICE && (chk_op(fr, chan) || chk_voice(NULL, fr, chan))) ||
        (chan->knock_flags == CHAN_FLAG_USER)) ||
       chan_kick(fr) || glob_kick(fr)) {
     return 0;
@@ -2123,8 +2146,11 @@ static int got315(char *from, char *msg)
     force_join_chan(chan);
   } else {
     me->is_me = 1;
+    me->user = conf.bot->u;
+    me->tried_getuser = 1;
     if (!me->joined)
       me->joined = now;				/* set this to keep the whining masses happy */
+    rebalance_roles_chan(chan);
     if (me_op(chan))
       recheck_channel(chan, 2);
     else if (chan->channel.members == 1)
@@ -2247,6 +2273,7 @@ static int got349(char *from, char *msg)
   return 0;
 }
 
+#if 0
 static void got353(char *from, char *msg)
 {
   char *chname = NULL;
@@ -2259,6 +2286,7 @@ static void got353(char *from, char *msg)
   fixcolon(msg);
   irc_log(chan, "%s", msg);
 }
+#endif
 
 /* got 346: invite exemption info
  * <server> 346 <to> <chan> <exemption>
@@ -2716,6 +2744,10 @@ static int gotjoin(char *from, char *chname)
 	m->last = now;
 	m->delay = 0L;
 	m->flags = (chan_hasop(m) ? WASOP : 0);
+        /* New bot available for roles, rebalance. */
+        if (is_bot(m->user)) {
+          chan->needs_role_rebalance = 1;
+        }
 	set_handle_laston(chan->dname, m->user, now);
 //	m->flags |= STOPWHO;
         irc_log(chan, "%s returned from netsplit", m->nick);
@@ -2756,6 +2788,8 @@ static int gotjoin(char *from, char *chname)
 
 	if (match_my_nick(nick)) {
           m->is_me = 1;
+          m->user = conf.bot->u;
+          m->tried_getuser = 1;
 	  /* It was me joining! Need to update the channel record with the
 	   * unique name for the channel (as the server see's it). <cybah>
 	   */
@@ -2775,6 +2809,10 @@ static int gotjoin(char *from, char *chname)
 	} else {
           irc_log(chan, "Join: %s (%s)", nick, uhost);
           detect_chan_flood(m, from, chan, FLOOD_JOIN);
+          /* New bot available for roles, rebalance. */
+          if (is_bot(m->user)) {
+            chan->needs_role_rebalance = 1;
+          }
 	  set_handle_laston(chan->dname, m->user, now);
 	}
       }
@@ -2788,7 +2826,8 @@ static int gotjoin(char *from, char *chname)
         bool is_op = chk_op(fr, chan);
 
         /* Check for a mass join */
-        if (!splitjoin && chan->flood_mjoin_time && chan->flood_mjoin_thr && !is_op) {
+        if (chan->role & ROLE_FLOOD &&
+            !splitjoin && chan->flood_mjoin_time && chan->flood_mjoin_thr && !is_op) {
           if (chan->channel.drone_jointime < now - chan->flood_mjoin_time) {      //expired, reset counter
             chan->channel.drone_joins = 0;
           }
@@ -2810,7 +2849,8 @@ static int gotjoin(char *from, char *chname)
 	    u_match_mask(chan->invites, from))
 	  refresh_invite(chan, from);
 
-	if (!(use_exempts && (u_match_mask(global_exempts,from) || u_match_mask(chan->exempts, from)))) {
+	if (chan->role & ROLE_BAN &&
+            !(use_exempts && (u_match_mask(global_exempts,from) || u_match_mask(chan->exempts, from)))) {
           if (channel_enforcebans(chan) && !chan_sentkick(m) && !is_op &&
               !(use_exempts && (isexempted(chan, from) || (chan->ircnet_status & CHAN_ASKED_EXEMPTS)))) {
             for (masklist* b = chan->channel.ban; b->mask[0]; b = b->next) {
@@ -2859,7 +2899,7 @@ static int gotjoin(char *from, char *chname)
           /* Autoop */
           if (!chan_hasop(m) && 
                (op || 
-               (dovoice(chan) && chk_autoop(m, fr, chan)))) {
+               ((chan->role & ROLE_OP) && chk_autoop(m, fr, chan)))) {
             do_op(m, chan, 1, 0);
           }
 
@@ -2869,9 +2909,9 @@ static int gotjoin(char *from, char *chname)
               if (!(m->flags & EVOICE) &&
                   (
                    /* +voice: Voice all clients who are not flag:+q. If the chan is +voicebitch, only op flag:+v clients */
-                   (channel_voice(chan) && !chk_devoice(fr) && (!channel_voicebitch(chan) || (channel_voicebitch(chan) && chk_voice(fr, chan)))) ||
+                   (channel_voice(chan) && !chk_devoice(fr) && (!channel_voicebitch(chan) || (channel_voicebitch(chan) && chk_voice(m, fr, chan)))) ||
                    /* Or, if the channel is -voice but they still qualify to be voiced */
-                   (!channel_voice(chan) && !privchan(fr, chan, PRIV_VOICE) && chk_voice(fr, chan))
+                   (!channel_voice(chan) && !privchan(fr, chan, PRIV_VOICE) && chk_voice(m, fr, chan))
                   )
                  ) {
                 m->delay = now + chan->auto_delay;
@@ -2922,6 +2962,10 @@ static int gotpart(char *from, char *msg)
       chan->ircnet_status &= ~(CHAN_PEND | CHAN_JOINING);
       reset_chan_info(chan);
     }
+    /* This bot fullfilled a role, need to rebalance. */
+    if (u && u->bot && (*chan->bot_roles)[u->handle] != 0) {
+      chan->needs_role_rebalance = 1;
+    }
     set_handle_laston(chan->dname, u, now);
 
     if (m) {
@@ -2962,7 +3006,7 @@ static int gotkick(char *from, char *origmsg)
     return 0; /* rejoin if kicked before getting needed info <Wcc[08/08/02]> */
   }
   if (channel_active(chan)) {
-    char *whodid = NULL, s1[UHOSTLEN] = "", buf[UHOSTLEN] = "", *uhost = buf;
+    char *whodid = NULL, buf[UHOSTLEN] = "", *uhost = buf;
     memberlist *m = NULL, *mv = NULL;
     struct flag_record fr = {FR_GLOBAL | FR_CHAN, 0, 0, 0 };
 
@@ -2997,7 +3041,7 @@ static int gotkick(char *from, char *origmsg)
     if (mv->user) {
       // Revenge kick clients that kick our bots
       if (chan->revenge && !mv->is_me && m && m != mv && mv->user->bot && !(m->user && m->user->bot)) {
-        if (role < 5 && !chan_sentkick(m) && me_op(chan)) {
+        if ((chan->role & ROLE_REVENGE) && !chan_sentkick(m) && me_op(chan)) {
           m->flags |= SENTKICK;
           dprintf(DP_MODE_NEXT, "KICK %s %s :%s%s\r\n", chan->name, m->nick, kickprefix, response(RES_REVENGE));
         } else {
@@ -3010,8 +3054,12 @@ static int gotkick(char *from, char *origmsg)
       }
 
       set_handle_laston(chan->dname, mv->user, now);
+      /* This bot fullfilled a role, need to rebalance. */
+      if (mv->user->bot && (*chan->bot_roles)[mv->user->handle] != 0) {
+        chan->needs_role_rebalance = 1;
+      }
     }
-    irc_log(chan, "%s was kicked by %s (%s)", s1, from, msg);
+    irc_log(chan, "%s!%s was kicked by %s (%s)", mv->nick, mv->userhost, from, msg);
     /* Kicked ME?!? the sods! */
     if (mv->is_me) {
       check_rejoin(chan);
@@ -3035,12 +3083,14 @@ static int gotnick(char *from, char *msg)
   nick = splitnick(&uhost);
   fixcolon(msg);
   irc_log(NULL, "[%s] Nick change: %s -> %s", samechans(nick, ","), nick, msg);
-  clear_chanlist_member(nick);	/* Cache for nick 'nick' is meaningless now. */
+  const RfcString rfc_nick(nick);
+  clear_chanlist_member(rfc_nick);	/* Cache for nick 'nick' is meaningless now. */
+
+  auto new_rfc_nick = std::make_shared<RfcString>(msg);
 
   Auth *auth = Auth::Find(uhost);
   if (auth)
-    auth->NewNick(msg);
-
+    auth->NewNick(*new_rfc_nick);
 
   /* Compose a nick!user@host for the new nick */
   simple_snprintf(s1, sizeof(s1), "%s!%s", msg, uhost);
@@ -3049,7 +3099,7 @@ static int gotnick(char *from, char *msg)
   struct userrec *u = get_user_by_host(s1);
 
   for (struct chanset_t *chan = chanset; chan; chan = chan->next) {
-    m = ismember(chan, nick);
+    m = ismember(chan, rfc_nick);
 
     if (m) {
       m->user = u;
@@ -3057,11 +3107,14 @@ static int gotnick(char *from, char *msg)
       /* Not just a capitalization change */
       if (rfc_casecmp(nick, msg)) {
         /* Someone on channel with old nick?! */
-	if ((mm = ismember(chan, msg)))
+	if ((mm = ismember(chan, *new_rfc_nick)))
 	  killmember(chan, mm->nick, false);
       }
 
+      chan->channel.hashed_members->remove(*m->rfc_nick);
       strlcpy(m->nick, msg, sizeof(m->nick));
+      m->rfc_nick = new_rfc_nick;
+      (*chan->channel.hashed_members)[*m->rfc_nick] = m;
       strlcpy(m->from, s1, sizeof(m->from));
 
       /*
@@ -3175,8 +3228,13 @@ static int gotquit(char *from, char *msg)
       member_getuser(m);
       u = m->user;
       if (u) {
-        if (u->bot)
+        if (u->bot) {
           counter_clear(u->handle);
+          /* This bot fullfilled a role, need to rebalance. */
+          if ((*chan->bot_roles)[u->handle] != 0) {
+            chan->needs_role_rebalance = 1;
+          }
+        }
         set_handle_laston(chan->dname, u, now); /* If you remove this, the bot will crash when the user record in question
 						   is removed/modified during the tcl binds below, and the users was on more
 						   than one monitored channel */
@@ -3197,6 +3255,7 @@ static int gotquit(char *from, char *msg)
    */
   if (keepnick && !match_my_nick(nick))
     nicks_available(nick);
+  set_fish_key(nick, "");
 #ifdef CACHE
   /* see if they were in our cache at all */
   cache_t *cache = cache_find(nick);
@@ -3498,7 +3557,9 @@ static cmd_t irc_raw[] =
   {"347",	"",	(Function) got347,	"irc:347", LEAF},
   {"348",	"",	(Function) got348,	"irc:348", LEAF},
   {"349",	"",	(Function) got349,	"irc:349", LEAF},
+#if 0
   {"353",	"",	(Function) got353,	"irc:353", LEAF},
+#endif
   {"710",	"",	(Function) got710,	"irc:710", LEAF},
   {NULL,	NULL,	NULL,			NULL, 0}
 };

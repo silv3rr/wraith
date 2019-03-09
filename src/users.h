@@ -21,9 +21,36 @@ struct list_type {
     	(b)->next = *(a);						\
 	*(a) = (b);							\
 }
-bool list_append(struct list_type **, struct list_type *);
-bool list_delete(struct list_type **, struct list_type *);
-bool list_contains(struct list_type *, struct list_type *);
+
+static inline bool
+list_append(struct list_type **h, struct list_type *i)
+{
+  for (; *h; h = &((*h)->next))
+    ;
+  *h = i;
+  return 1;
+}
+
+static inline bool
+list_delete(struct list_type **h, struct list_type *i)
+{
+  for (; *h; h = &((*h)->next))
+    if (*h == i) {
+      *h = i->next;
+      return 1;
+    }
+  return 0;
+}
+
+static inline bool __attribute__((pure))
+list_contains(const struct list_type *h, const struct list_type *i)
+{
+  for (; h; h = h->next)
+    if (h == i) {
+      return 1;
+    }
+  return 0;
+}
 
 namespace bd {
   class Stream;
@@ -49,8 +76,9 @@ struct user_entry_type {
 extern struct user_entry_type USERENTRY_COMMENT, USERENTRY_LASTON,
  USERENTRY_INFO, USERENTRY_BOTADDR, USERENTRY_HOSTS,
  USERENTRY_PASS, USERENTRY_STATS, USERENTRY_ADDED, USERENTRY_MODIFIED,
- USERENTRY_SET, USERENTRY_SECPASS, USERENTRY_USERNAME, USERENTRY_NODENAME, USERENTRY_OS,
- USERENTRY_PASS1, USERENTRY_ARCH, USERENTRY_OSVER;
+ USERENTRY_SET, USERENTRY_SECPASS, USERENTRY_USERNAME, USERENTRY_NODENAME,
+ USERENTRY_OS, USERENTRY_PASS1, USERENTRY_ARCH, USERENTRY_OSVER,
+ USERENTRY_FFLAGS;
 
 struct laston_info {
   time_t laston;
@@ -58,12 +86,17 @@ struct laston_info {
 };
 
 struct bot_addr {
-  unsigned int roleid;
   char *address;
   char *uplink;
   unsigned short hublevel;
   in_port_t telnet_port;
   in_port_t relay_port;
+};
+
+struct xtra_key {
+  struct xtra_key *next;
+  char *key;
+  char *data;
 };
 
 struct user_entry {
@@ -72,16 +105,11 @@ struct user_entry {
   union {
     char *string;
     void *extra;
+    struct xtra_key *xk;
     struct list_type *list;
     unsigned long ulong;
   } u;
   char *name;
-};
-
-struct xtra_key {
-  struct xtra_key *next;
-  char *key;
-  char *data;
 };
 
 struct filesys_stats {
@@ -92,7 +120,7 @@ struct filesys_stats {
 };
 
 bool add_entry_type(struct user_entry_type *);
-struct user_entry_type *find_entry_type(char *);
+struct user_entry_type *find_entry_type(const char *) __attribute__((pure));
 struct user_entry *find_user_entry(struct user_entry_type *, struct userrec *);
 void *get_user(struct user_entry_type *, struct userrec *);
 bool user_has_host(const char *, struct userrec *, char *);
@@ -127,6 +155,7 @@ struct userrec {
   struct chanuserrec *chanrec;
   struct userrec *next;
   flag_t flags;
+  int fflags;
   char handle[HANDLEN + 1];
   char bot;
 };
@@ -153,7 +182,7 @@ extern struct igrec *global_ign;
 bool def_unpack(struct userrec *u, struct user_entry *e);
 bool def_kill(struct user_entry *e);
 bool def_write_userfile(FILE *f, struct userrec *u, struct user_entry *e);
-void *def_get(struct userrec *u, struct user_entry *e);
+void *def_get(struct userrec *u, struct user_entry *e) __attribute__((pure));
 bool def_set(struct userrec *u, struct user_entry *e, void *buf);
 bool def_gotshare(struct userrec *u, struct user_entry *e, char *data, int idx);
 void def_display(int idx, struct user_entry *e, struct userrec *u);
@@ -163,7 +192,7 @@ void backup_userfile();
 void addignore(char *, char *, const char *, time_t);
 char *delignore(char *);
 void tell_ignores(int, char *);
-bool match_ignore(char *);
+bool match_ignore(const char *) __attribute__((pure));
 void check_expired_ignores();
 void autolink_cycle();
 void tell_file_stats(int, char *);

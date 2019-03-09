@@ -608,21 +608,13 @@ static void cmd_nohelp(int idx, char *par)
   dumplots(idx, "", buf);
 }
 
-bool is_restricted_cmd(const char* name) {
-  if (name) {
-    if (!HAVE_MDOP && !strcasecmp(name, "mmode"))
-      return 1;
-  }
-  return 0;
-}
-
 static int comp_help_t(const void *m1, const void *m2) {
   const help_t *mi1 = (const help_t *) m1;
   const help_t *mi2 = (const help_t *) m2;
   return strcasecmp(mi1->cmd, mi2->cmd);
 }
 
-help_t *
+const help_t *
 findcmd(const char *lookup, bool care_about_type)
 {
   help_t key;
@@ -679,7 +671,7 @@ static void cmd_help(int idx, char *par)
         flg[0] = 0;
         build_flags(flg, &(cmdlist[n].flags), NULL);
         dprintf(idx, "Showing you help for '%s' (%s):\n", match, flg);
-        help_t *h_entry = NULL;
+        const help_t *h_entry = NULL;
         if ((h_entry = findhelp(match)) != NULL) {
           if (h_entry->garble_len)
             showhelp(idx, &fr, degarble(h_entry->garble_len, h_entry->desc));
@@ -919,10 +911,9 @@ static void cmd_groups(int idx, char *par)
     return;
   }
 
-  bd::Array<bd::String> globalgroups = bd::String(var_get_gdata("groups")).split(",");
-  bd::Array<bd::String> allgroups;
   bd::HashTable<bd::String, bd::Array<bd::String> > groupBots;
   bd::HashTable<bd::String, bd::Array<bd::String> > botGroups;
+  bd::String bothandle;
   size_t maxGroupLen = 0;
 
   // Need to loop over every bot and make a list of all groups and bots which are in those groups
@@ -930,33 +921,44 @@ static void cmd_groups(int idx, char *par)
     if (u->bot && bot_hublevel(u) == 999) {
       // Gather all the groups for this bot
       botGroups[u->handle] = bd::String(var_get_bot_data(u, "groups", true)).split(",");
-      for (size_t i = 0; i < botGroups[u->handle].length(); ++i) {
-        const bd::String group(botGroups[u->handle][i]);
+      for (const auto& group : botGroups[u->handle]) {
         if (group.length() > maxGroupLen) {
           maxGroupLen = group.length();
         }
-        // Add their groups into the master list
-        if (allgroups.find(group) == allgroups.npos) {
-          allgroups << group;
-        }
         // Add them to the list for this group
-        groupBots[group] << u->handle;
+        if (u != conf.bot->u && !findbot(u->handle))
+          bothandle = bd::String::printf("*%s", u->handle);
+        else
+          bothandle = u->handle;
+        groupBots[group] << bothandle;
 
       }
     }
   }
 
   if (botnick.length()) {
-    dprintf(idx, "%s is in groups: %s\n", botnick.c_str(), static_cast<bd::String>(botGroups[botnick].join(" ")).c_str());
-    dprintf(idx, "Total groups: %zu/%zu\n", botGroups[botnick].length(), allgroups.length());
+    dprintf(idx, "%s is in groups: %s\n", botnick.c_str(),
+        static_cast<bd::String>(botGroups[botnick].join(" ")).c_str());
+    dprintf(idx, "Total groups: %zu/%zu\n", botGroups[botnick].length(),
+        groupBots.size());
   } else {
-    // Display all groups and which bots are in them
-    for (size_t i = 0; i < allgroups.length(); ++i) {
-      const bd::String group(allgroups[i]);
-      const bd::Array<bd::String> bots(groupBots[group]);
-      dumplots(idx, bd::String::printf("%-*s: ", int(maxGroupLen), group.c_str()).c_str(), static_cast<bd::String>(bots.join(" ")).c_str());
+    std::vector<bd::String> allgroups;
+    allgroups.reserve(groupBots.size());
+    for (auto& kv : groupBots) {
+      const auto& group = kv.first;
+      auto& botlist = kv.second;
+      allgroups.push_back(group);
+      std::sort(botlist.begin(), botlist.end(), sortDownBots);
     }
-    dprintf(idx, "Total groups: %zu\n", allgroups.length());
+    std::sort(allgroups.begin(), allgroups.end());
+    // Display all groups and which bots are in them
+    for (const auto& group : allgroups) {
+      const auto& bots = groupBots[group];
+      dumplots(idx,
+          bd::String::printf("%-*s: ", int(maxGroupLen), group.c_str()),
+          bots.join(" "));
+    }
+    dprintf(idx, "Total groups: %zu\n", groupBots.size());
   }
 
   return;
@@ -2106,6 +2108,9 @@ static void cmd_suicide(int idx, char *par)
 static void cmd_debug(int idx, char *par)
 {
   char *cmd = NULL;
+  struct chanset_t* chan = NULL;
+  size_t roleidx;
+  bd::Array<bd::String> roles;
 
   if (!par[0]) 
     putlog(LOG_CMDS, "*", "#%s# debug", dcc[idx].nick);
@@ -2116,8 +2121,20 @@ static void cmd_debug(int idx, char *par)
     dprintf(idx, "Timesync: %li (%li)\n", (long) (now + timesync), (long)timesync);
   if (!cmd || (cmd && !strcmp(cmd, "now")))
     dprintf(idx, "Now: %li\n", (long)now);
-  if (!cmd || (cmd && !strcmp(cmd, "role")))
-    dprintf(idx, "Role: %d\n", role);
+  if (!cmd || (cmd && !strcmp(cmd, "role"))) {
+    for (chan = chanset; chan; chan = chan->next) {
+      if (chan->role) {
+        roles.clear();
+        for (roleidx = 0; role_counts[roleidx].name; ++roleidx) {
+          if (chan->role & role_counts[roleidx].role) {
+            roles << role_counts[roleidx].name;
+          }
+        }
+        dprintf(idx, "Role: %-8s: %s\n", chan->dname,
+            static_cast<bd::String>(roles.join(" ")).c_str());
+      }
+    }
+  }
   if (!cmd || (cmd && !strcmp(cmd, "net")))
     tell_netdebug(idx);
   if (!cmd || (cmd && !strcmp(cmd, "dns")))
@@ -3018,7 +3035,7 @@ static void cmd_color(int idx, char *par)
   console_dostore(idx);
 }
 
-int stripmodes(char *s)
+int stripmodes(const char *s)
 {
   int res = 0;
 
@@ -3049,7 +3066,7 @@ int stripmodes(char *s)
   return res;
 }
 
-char *stripmasktype(int x)
+const char *stripmasktype(int x)
 {
   static char s[20] = "";
   char *p = s;
@@ -3072,7 +3089,7 @@ char *stripmasktype(int x)
   return s;
 }
 
-static char *stripmaskname(int x)
+static const char *stripmaskname(int x)
 {
   static char s[161] = "";
   size_t i = 0;
@@ -3366,7 +3383,7 @@ static void cmd_newleaf(int idx, char *par)
 
 static void cmd_newhub(int idx, char *par)
 {
-  bd::Array<bd::String> params(bd::String(par).split(' '));
+  const auto& params(bd::String(par).split(' '));
   if (!par[0] || params.length() < 3) {
     dprintf(idx, "Usage: newhub <handle> <address> <port> [hublevel]\n");
     return;
@@ -3379,7 +3396,7 @@ static void cmd_newhub(int idx, char *par)
   if (handle.length() > HANDLEN) {
     handle.resize(HANDLEN);
   }
-  if (get_user_by_handle(userlist, const_cast<char*>(handle.c_str()))) {
+  if (get_user_by_handle(userlist, handle.c_str())) {
     dprintf(idx, "Already got a %s hub\n", handle.c_str());
     return;
   } else if (strchr(BADHANDCHARS, handle[0]) != NULL) {
@@ -3387,13 +3404,13 @@ static void cmd_newhub(int idx, char *par)
     return;
   }
 
-  bd::String address(params[1]);
-  in_port_t port = atoi(static_cast<bd::String>(params[2]).c_str());
+  const auto& address(params[1]);
+  in_port_t port = atoi(params[2].c_str());
 
   unsigned short hublevel = 0;
   // Was a hublevel passed in?
   if (params.length() == 4) {
-    hublevel = atoi(static_cast<bd::String>(params[3]).c_str());
+    hublevel = atoi(params[3].c_str());
   } else {
     // Find next available hublevel
     for (struct userrec *u = userlist; u; u = u->next) {
@@ -3410,7 +3427,7 @@ static void cmd_newhub(int idx, char *par)
   char tmp[81] = "";
 
   userlist = adduser(userlist, handle.c_str(), "none", "-", USER_OP, 1);
-  u1 = get_user_by_handle(userlist, const_cast<char*>(handle.c_str()));
+  u1 = get_user_by_handle(userlist, handle.c_str());
   bi = (struct bot_addr *) calloc(1, sizeof(struct bot_addr));
   bi->uplink = (char *) calloc(1, 1);
   bi->address = strdup(address.c_str());
@@ -4305,7 +4322,8 @@ static void cmd_crontab(int idx, char *par) {
   }
 }
 
-static void my_dns_callback(int id, void *client_data, const char *host, bd::Array<bd::String> ips)
+static void my_dns_callback(int id, void *client_data, const char *host,
+    const bd::Array<bd::String>& ips)
 {
   //64bit hacks
   long data = (long) client_data;
@@ -4317,8 +4335,8 @@ static void my_dns_callback(int id, void *client_data, const char *host, bd::Arr
     return;
 
   if (ips.size())
-    for (size_t i = 0; i < ips.size(); ++i)
-      dprintf(idx, "Resolved %s using (%s) to: %s\n", host, dns_ip, bd::String(ips[i]).c_str());
+    for (const auto& ip : ips)
+      dprintf(idx, "Resolved %s using (%s) to: %s\n", host, dns_ip, ip.c_str());
   else
     dprintf(idx, "Failed to lookup via (%s): %s\n", dns_ip, host);
 

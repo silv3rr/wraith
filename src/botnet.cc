@@ -54,6 +54,7 @@
 #include <bdlib/src/String.h>
 #include <bdlib/src/Array.h>
 #include <algorithm>
+#include <unordered_map>
 
 tand_t			*tandbot = NULL;		/* Keep track of tandem bots on the
 							   botnet */
@@ -83,7 +84,7 @@ extern void counter_clear(const char* botnick);
 
 /* Add a tandem bot to our chain list
  */
-void addbot(char *who, char *from, char *next, char flag, int vlocalhub, time_t vbuildts, char *vcommit, char *vversion)
+void addbot(char *who, char *from, char *next, char flag, int vlocalhub, time_t vbuildts, char *vcommit, char *vversion, int fflags)
 {
   tand_t **ptr = &tandbot, *ptr2 = NULL;
 
@@ -109,6 +110,13 @@ void addbot(char *who, char *from, char *next, char flag, int vlocalhub, time_t 
   ptr2->hub = is_hub(who);
   /* Cache user record */
   ptr2->u = userlist ? get_user_by_handle(userlist, who) : NULL;
+  ptr2->fflags = fflags;
+  if (fflags != -1) {
+    char buf[15];
+
+    simple_snprintf(buf, sizeof(buf), "%d", ptr2->fflags);
+    set_user(&USERENTRY_FFLAGS, ptr2->u ? ptr2->u : get_user_by_handle(userlist, who), buf);
+  }
   if (!strcasecmp(next, conf.bot->nick))
     ptr2->uplink = (tand_t *) 1;
   else
@@ -132,7 +140,7 @@ void check_should_backup()
 }
 #endif /* G_BACKUP */
 
-void updatebot(int idx, char *who, char share, int vlocalhub, time_t vbuildts, char *vcommit, char *vversion)
+void updatebot(int idx, char *who, char share, int vlocalhub, time_t vbuildts, char *vcommit, char *vversion, int fflags)
 {
   tand_t *ptr = findbot(who);
 
@@ -147,6 +155,15 @@ void updatebot(int idx, char *who, char share, int vlocalhub, time_t vbuildts, c
       strlcpy(ptr->commit, vcommit, sizeof(ptr->commit));
     if (vversion && vversion[0])
       strlcpy(ptr->version, vversion, 121);
+    /* -1 = unknown (do not modify) */
+    if (fflags != -1) {
+      char buf[15];
+
+      ptr->fflags = fflags;
+      simple_snprintf(buf, sizeof(buf), "%d", ptr->fflags);
+      set_user(&USERENTRY_FFLAGS, ptr->u ? ptr->u : get_user_by_handle(userlist, who), buf);
+    }
+    /* Assign flags here */
     botnet_send_update(idx, ptr);
   }
 }
@@ -229,7 +246,7 @@ void partysetidle(char *bot, int sock, int secs)
 
 /* Return someone's chat channel.
  */
-int getparty(char *bot, int sock)
+int getparty(const char *bot, int sock)
 {
   for (int i = 0; i < parties; i++) {
     if (!strcasecmp(party[i].bot, bot) &&
@@ -530,7 +547,17 @@ void answer_local_whom(int idx, int chan)
   dprintf(idx, "Total users: %d\n", total);
 }
 
-bool sortNodes(const bd::String nodeA, const bd::String nodeB) {
+bool
+__attribute__((pure))
+sortDownBots(bd::String botA, bd::String botB) {
+  if (botA[0] == '*') ++botA;
+  if (botB[0] == '*') ++botB;
+  return botA < botB;
+}
+
+static bool
+__attribute__((pure))
+sortNodes(const bd::String& nodeA, const bd::String& nodeB) {
   const bd::String unknown("(unknown)");
   if (nodeA == unknown) {
     return true;
@@ -538,23 +565,18 @@ bool sortNodes(const bd::String nodeA, const bd::String nodeB) {
     return false;
   }
   // Reverse the domains
-  const bd::Array<bd::String> partsA(nodeA.split("."));
-  const bd::Array<bd::String> partsB(nodeB.split("."));
-  bd::Array<bd::String> reversedPartsA, reversedPartsB;
-  bd::String reversedNodeA, reversedNodeB;
-
-  if (partsA.length()) {
-    for (size_t i = partsA.length() - 1; i > 0; --i) {
-      reversedPartsA << partsA[i - 1];
-    }
-  }
-  if (partsB.length()) {
-    for (size_t i = partsB.length() - 1; i > 0; --i) {
-      reversedPartsB << partsB[i - 1];
-    }
-  }
-  reversedNodeA = reversedPartsA.join(".");
-  reversedNodeB = reversedPartsB.join(".");
+  auto partsA(nodeA.split("."));
+  auto partsB(nodeB.split("."));
+  if (partsA.size() < partsB.size())
+    while (partsA.size() < partsB.size())
+      partsA.push_back(".");
+  else
+    while (partsB.size() < partsA.size())
+      partsB.push_back(".");
+  std::reverse(partsA.begin(), partsA.end());
+  std::reverse(partsB.begin(), partsB.end());
+  const auto& reversedNodeA(partsA.join("."));
+  const auto& reversedNodeB(partsB.join("."));
   return reversedNodeA < reversedNodeB;
 }
 
@@ -565,7 +587,7 @@ tell_bots(int idx, int up, const char *nodename)
 {
   size_t total = 0, maxNodeNameLength = 0;;
   bd::Array<bd::String> nodes;
-  bd::HashTable<bd::String, bd::Array<bd::String> > nodeBots;
+  std::unordered_map<bd::String, bd::Array<bd::String> > nodeBots;
   bd::Array<bd::String> bots;
   bd::String group;
 
@@ -608,14 +630,21 @@ tell_bots(int idx, int up, const char *nodename)
   }
 
   if (group.length() == 0 && !nodename) {
-    dumplots(idx, nodename ? "Matching: " : (up ? "Up: " : "Down: "), static_cast<bd::String>(bots.join(" ")).c_str());
+    dumplots(idx, nodename ? "Matching: " : (up ? "Up: " : "Down: "),
+        bots.join(" "));
   } else {
     // Sort by nodes
     std::sort(nodes.begin(), nodes.end(), sortNodes);
-    for (size_t i = 0; i < nodes.length(); ++i) {
-      const bd::String node(nodes[i]);
-      const bd::Array<bd::String> botsInNode(nodeBots[node]);
-      dumplots(idx, bd::String::printf("%*s: ", int(maxNodeNameLength), node.c_str()).c_str(), static_cast<bd::String>(botsInNode.join(" ")).c_str());
+    for (auto& kv : nodeBots) {
+      auto& botlist = kv.second;
+      std::sort(botlist.begin(), botlist.end(), sortDownBots);
+    }
+    for (const auto& node : nodes) {
+      const auto& botsInNode(nodeBots[node]);
+      dumplots(idx,
+          bd::String::printf("%*s: ",
+            int(maxNodeNameLength), node.c_str()),
+            botsInNode.join(" "));
     }
   }
 
@@ -836,7 +865,7 @@ void dump_links(int z)
   }
 }
 
-int in_chain(char *who)
+int in_chain(const char *who)
 {
   if (!strcasecmp(who, conf.bot->nick))
     return 1;
@@ -845,7 +874,7 @@ int in_chain(char *who)
   return 0;
 }
 
-int bots_in_subtree(tand_t *bot)
+int bots_in_subtree(const tand_t *bot)
 {
   if (!bot)
     return 0;
@@ -861,7 +890,7 @@ int bots_in_subtree(tand_t *bot)
   return nr;
 }
 
-int users_in_subtree(tand_t *bot)
+int users_in_subtree(const tand_t *bot)
 {
   if (!bot)
     return 0;
@@ -977,7 +1006,8 @@ int botunlink(int idx, const char *nick, const char *reason)
   return 0;
 }
 
-static void botlink_dns_callback(int, void *, const char *, bd::Array<bd::String>);
+static void botlink_dns_callback(int, void *, const char *,
+    const bd::Array<bd::String>&);
 static void botlink_real(int);
 
 /* Link to another bot
@@ -1077,7 +1107,8 @@ int botlink(char *linker, int idx, char *nick)
   return 0;
 }
 
-static void botlink_dns_callback(int id, void *client_data, const char *host, bd::Array<bd::String> ips)
+static void botlink_dns_callback(int id, void *client_data, const char *host,
+    const bd::Array<bd::String>& ips)
 {
   long data = (long) client_data;
   int i = (int) data;
@@ -1190,7 +1221,8 @@ static void failed_tandem_relay(int idx)
   return;
 }
 
-static void tandem_relay_dns_callback(int, void *, const char *, bd::Array<bd::String>);
+static void tandem_relay_dns_callback(int, void *, const char *,
+    const bd::Array<bd::String>&);
 
 /* Relay to another tandembot
  */
@@ -1254,7 +1286,8 @@ void tandem_relay(int idx, char *nick, int i)
   /* wait for async reply */
 }
 
-static void tandem_relay_dns_callback(int id, void *client_data, const char *host, bd::Array<bd::String> ips)
+static void tandem_relay_dns_callback(int id, void *client_data,
+    const char *host, const bd::Array<bd::String>& ips)
 {
   //64bit hacks
   long data = (long) client_data;
@@ -1794,48 +1827,6 @@ void zapfbot(int idx)
   botnet_send_unlinked(idx, dcc[idx].nick, s);
   killsock(dcc[idx].sock);
   lostdcc(idx);
-}
-
-static int get_role(char *bot)
-{
-  struct userrec *u2 = NULL;
-
-  if (!(u2 = get_user_by_handle(userlist, bot)))
-    return 1;
-  if (bot_hublevel(u2) != 999)
-    return 0;
-
-  int rl, i;
-  struct bot_addr *ba = NULL;
-  int r[5] = { 0, 0, 0, 0, 0 };
-  struct userrec *u = NULL;
-
-  for (u = userlist; u; u = u->next) {
-    if (u->bot && bot_hublevel(u) == 999) {
-      if (strcmp(u->handle, bot)) {
-        ba = (struct bot_addr *) get_user(&USERENTRY_BOTADDR, u);
-        if ((nextbot(u->handle) >= 0) && (ba) && (ba->roleid > 0) && (ba->roleid < 5))
-          r[(ba->roleid - 1)]++;
-      }
-    }
-  }
-  rl = 0;
-  for (i = 1; i <= 4; i++)
-    if (r[i] < r[rl])
-      rl = i;
-  rl++;
-  ba = (struct bot_addr *) get_user(&USERENTRY_BOTADDR, u2);
-  if (ba)
-    ba->roleid = rl;
-  return rl;
-}
-
-void lower_bot_linked(int idx)
-{
-  char tmp[6] = "";
-
-  simple_snprintf(tmp, sizeof(tmp), "rl %d", get_role(dcc[idx].nick));
-  putbot(dcc[idx].nick, tmp);
 }
 
 /* vim: set sts=2 sw=2 ts=8 et: */
