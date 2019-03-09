@@ -805,7 +805,7 @@ const char *my_username()
   return username[0] ? username : NULL;
 }
 
-char *my_botident(bool useconf)
+const char *my_botident(bool useconf)
 {
   static char botident_buf[DIRMAX] = "";
 
