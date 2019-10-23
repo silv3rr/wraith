@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:${HOME}/bin
+#PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin:${HOME}/bin
 
 if [ -d .git ]; then
   BUILDTS=$(git log -1 --pretty=format:%ct HEAD)
@@ -29,6 +29,7 @@ usage()
     echo
     echo "    The options are as follows:"
     echo "    -b        Use bzip2 instead of gzip when packaging."
+    echo "    -x        Use xz instead of gzip when packaging."
     echo "    -c        Cleans up old binaries/files before compile."
     echo "    -C        Preforms a distclean before making."
     echo "    -d        Builds a debug package."
@@ -41,9 +42,10 @@ debug=0
 clean=0
 nopkg=0
 bzip=0
+xz=0
 pkg=0
 
-while getopts bCcdhnP: opt ; do
+while getopts bCcdhnxP: opt ; do
         case "$opt" in
         b) bzip=1 ;;
 	c) clean=1 ;;
@@ -52,6 +54,7 @@ while getopts bCcdhnP: opt ; do
 	h) usage; exit 0 ;;
         n) nopkg=1 ;;
         P) pkg=1 ;;
+        x) xz=1 ;;
         *) usage; exit 1 ;;
 
         esac
@@ -71,7 +74,6 @@ if test -z "$1"; then
  echo
  exit 1
 fi
-
 
 PACKNAME=`grep "PACKNAME " ${pack} | awk '/PACKNAME/ {print $2}'`
 
@@ -158,6 +160,9 @@ _build
 if [ $bzip = "1" ]; then
   zip="j"
   ext="bz2"
+elif [ $xz = "1" ]; then
+  zip="J"
+  ext="xz"
 else
   zip="z"
   ext="gz"
