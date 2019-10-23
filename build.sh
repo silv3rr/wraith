@@ -31,7 +31,7 @@ usage()
     echo "    -b        Use bzip2 instead of gzip when packaging."
     echo "    -x        Use xz instead of gzip when packaging."
     echo "    -c        Cleans up old binaries/files before compile."
-    echo "    -C        Preforms a distclean before making."
+    echo "    -C        Performs a distclean before making."
     echo "    -d        Builds a debug package."
     echo "    -n        Do not package the binaries."
     echo "    -P        For development (Don't compile/rm binaries)"
