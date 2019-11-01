@@ -20,10 +20,8 @@
 |[wraith.botpack.net/wiki/PackConfigExample](http://wraith.botpack.net/wiki/PackConfigExample)|[PackConfigExample](../../wiki/PackConfigExample)|Releases
 |[wraith.botpack.net/wiki/Updating](http://wraith.botpack.net/wiki/Updating)|[Updating](../../wiki/Updating)
 |[wraith.botpack.net/wiki/WhoisRestrictions](http://wraith.botpack.net/wiki/WhoisRestrictions)|[WhoisRestrictions](../../wiki/WhoisRestrictions)
-|||
-|||
-|||
+|.|.|.
 |[wraith.botpack.net/wiki/Documentation](http://wraith.botpack.net/wiki/Documentation)|[Documentation.md]([Documentation.md])|Empty on trac
 |[wraith.botpack.net/wiki/Contributing](http://wraith.botpack.net/wiki/Contributing)|[CONTRIBUTING.md](CONTRIBUTING.md])
 |-|[UPDATES.md](doc/UPDATES.md)
-|[wraith.botpack.net/wiki/Components]([http://wraith.botpack.net/wiki/Components)|[Components](../../wiki/Components)|(**?**) Error message
+|[wraith.botpack.net/wiki/Components](http://wraith.botpack.net/wiki/Components)|[Components](../../wiki/Components)|(**?**) Error message
