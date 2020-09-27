@@ -18,7 +18,7 @@ rm -f ts > /dev/null 2>&1
 
 #Display banner
 clear
-head -n 8 README
+head -n 8 README | sed '/travis-ci/,/^$/d'
 
 echo -e "Version:   ${ver}\nBuild:     ${builddate}"
 echo ""
@@ -75,7 +75,7 @@ if test -z "$1"; then
  exit 1
 fi
 
-PACKNAME=`grep "PACKNAME " ${pack} | awk '/PACKNAME/ {print $2}'`
+PACKNAME=`awk '/PACKNAME/ {print $2}' $pack | tr -d '[:space:]'`
 
 rm=1
 compile=1
