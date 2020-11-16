@@ -62,20 +62,24 @@ done
 
 shift $(($OPTIND - 1))
 
-pack=$1
-if ! [ -f $pack ]; then
-  echo "Cannot read $pack" >&2
-  exit 1
+if [ -n "$1" ]; then
+  pack="$1"
+elif [ -s "pack.cfg" ]; then
+  pack="pack.cfg"
+fi
+if ! [ -f "$pack" ]; then
+  echo "ERROR: Cannot read pack.cfg" >&2
+  echo
 fi
 
-if test -z "$1"; then
+if test -z "$pack" && test -z "$1"; then
  usage
  echo 'You can run "scripts/packcfg.pl" to generate pack config' >&2
  echo
  exit 1
 fi
 
-PACKNAME=`awk '/PACKNAME/ {print $2}' $pack | tr -d '[:space:]'`
+PACKNAME=`awk '/PACKNAME/ {print $2}' "$pack" | tr -d '[:space:]'`
 
 rm=1
 compile=1
