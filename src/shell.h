@@ -52,7 +52,7 @@ const char *homedir(bool = 1);
 const char *my_username();
 const char *my_botident(bool = 1);
 void expand_tilde(char **);
-int shell_exec(char *, char *, char **, char **, bool = 0);
+int shell_exec(const char *, const char *, char **, char **, bool = 0);
 int simple_exec(const char* argv[]);
 void check_last();
 void check_promisc();

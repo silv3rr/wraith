@@ -1,5 +1,5 @@
 # master
-  * Require C++14 compiler support (GCC 5+, Clang 3.4+)
+  * Require C++11 compiler support (GCC 48+, Clang 3.4+)
   * Wraith now automatically assigns roles to bots for channels, no longer
     requiring manually assigning them with flags +flry for flood, limit,
     resolve, auto-voice, auto-op. These roles are decentralized and per-chan
@@ -16,7 +16,7 @@
   * Sort cmd_groups and cmd_bots better.
   * cmd_groups: Indicate which bots are down with a _*_.
 
-# maint
+# 1.4.10
   * Clear FiSH keys when a client quits.
   * Fix crash when clearing last botset entry for a bot.
   * Bots now share channel key to other bots even if not opped.
@@ -24,6 +24,10 @@
   * Make ./wraith -q and -Q clearly exit when already written.
   * Don't crash when looking up a missing response.
   * Fix cmd_slowjoin still adding the channel on parsing error.
+  * Fix -Wwritable-strings warnings
+  * Fix dirname(3) support on FreeBSD (#89).
+  * Fix OpenSSL 1.1 forward compat.
+  * SSL: Prefer TLS_client_method() over SSLv23_client_method().
 
 # 1.4.9
   * Fix various compile warnings and spam
@@ -198,7 +202,7 @@
   * Add cmd_newhub for adding a new hub. All bots will add this to their config.
   * Hubs can now be overridden inside the botconfig (-C)
   * Optimize userfile writing by doing it asynchronously
-  * Groups support added. See: http://wraith.botpack.net/wiki/Groups
+  * Groups support added. See: https://github.com/wraith/wraith/wiki/Groups
     * Add [bot]set var 'groups' to configure what groups bots are in
     * Add chanset 'groups' to take a list of groups that should join. 'chanset #chan groups { main backup }'
     * Added group support to 'botcmd': 'botcmd [*|&|?] %group cmd'

@@ -125,7 +125,7 @@ struct user_entry *find_user_entry(struct user_entry_type *, struct userrec *);
 void *get_user(struct user_entry_type *, struct userrec *);
 bool user_has_host(const char *, struct userrec *, char *);
 bool user_has_matching_host(const char *handle, struct userrec *u, char *host);
-bool set_user(struct user_entry_type *, struct userrec *, void *);
+bool set_user(struct user_entry_type *, struct userrec *, const void *);
 
 #define is_bot(u)	((u) && (u)->bot)
 
@@ -197,7 +197,7 @@ void check_expired_ignores();
 void autolink_cycle();
 void tell_file_stats(int, char *);
 void tell_user_ident(int, char *);
-void tell_users_match(int, char *, int, int, char *, int);
+void tell_users_match(int, char *, int, int, const char *, int);
 int readuserfile(const char *, struct userrec **);
 int stream_readuserfile(bd::Stream&, struct userrec **);
 void check_pmode();

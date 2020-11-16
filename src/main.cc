@@ -108,6 +108,7 @@ bool	term_z = 0;		/* Foreground: use the terminal as a party line? */
 int 	updating = 0; 		/* this is set when the binary is called from itself. */
 char 	tempdir[PATH_MAX] = "";
 char 	*binname = NULL;
+char    *bindir = NULL;
 time_t	online_since;		/* Unix-time that the bot loaded up */
 time_t  restart_time;
 bool	restart_was_update = 0;
@@ -274,9 +275,9 @@ static void checkpass()
 
 }
 
-static void got_ed(char *, char *, char*) __attribute__((noreturn));
+static void got_ed(const char *, const char *, const char*) __attribute__((noreturn));
 
-static void got_ed(char *which, char *in, char *out)
+static void got_ed(const char *which, const char *in, const char *out)
 {
   sdprintf(STR("got_Ed called: -%s i: %s o: %s"), which, in, out);
   if (!in || !out)
@@ -699,7 +700,7 @@ static void startup_checks(int hack) {
     free_conf_bots(conf.bots);			/* not a localhub, so no need to store all bot info */
 }
 
-static char *fake_md5 = "596a96cc7bf9108cd896f33c44aedc8a";
+static const char *fake_md5 = "596a96cc7bf9108cd896f33c44aedc8a";
 
 void console_init();
 void ctcp_init();
@@ -739,7 +740,9 @@ int main(int argc, char **argv)
   }
 
   binname = getfullbinname(argv[0]);
-  if (chdir(dirname(binname)))
+  char *binname_tmp = strdup(binname);
+  bindir = dirname(binname_tmp);
+  if (chdir(bindir))
     werr(ERR_BINSTAT);
 
   /* Find a temporary tempdir until we load binary data */
@@ -940,5 +943,10 @@ int main(int argc, char **argv)
   }
 
   return 0;		/* never reached but what the hell */
+}
+
+/* bfd doesn't link empty --dynamic-list file. */
+void bfd_exports_stub(void)
+{
 }
 /* vim: set sts=2 sw=2 ts=8 et: */

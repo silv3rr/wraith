@@ -60,6 +60,7 @@ tand_t			*tandbot = NULL;		/* Keep track of tandem bots on the
 							   botnet */
 party_t			*party = NULL;			/* Keep track of people on the botnet */
 int			tands = 0;			/* Number of bots on the botnet */
+unsigned long		tand_updates = 0;
 
 static int 		maxparty = 50;			/* Maximum space for party line members
 							   currently */
@@ -122,6 +123,7 @@ void addbot(char *who, char *from, char *next, char flag, int vlocalhub, time_t 
   else
     ptr2->uplink = findbot(next);
   tands++;
+  tand_updates++;
 
   counter_clear(who);
 }
@@ -334,6 +336,7 @@ void rembot(const char *whoin)
 
   ptr2 = *ptr;
   *ptr = ptr2->next;
+  tand_updates++;
   free(ptr2);
   tands--;
 
@@ -417,7 +420,7 @@ int nextbot(const char *who)
 
 /* Return name of the bot that is directly connected to bot X
  */
-char *lastbot(const char *who)
+const char *lastbot(const char *who)
 {
   tand_t *bot = findbot(who);
 
@@ -981,7 +984,7 @@ int botunlink(int idx, const char *nick, const char *reason)
          sometimes. While we still search for the bug, provide
          an easy way to clear out those `ghost'-bots.
 				       Fabian (2000-08-02)  */
-      char *ghost = "BUG!!: Found bot `%s' in internal bot list, but it\n"
+      const char *ghost = "BUG!!: Found bot `%s' in internal bot list, but it\n"
 		    "   shouldn't have been there! Removing.\n"
 		    "   This is a known bug we haven't fixed yet. If this\n"
 		    "   bot is the newest eggdrop version available and you\n"
@@ -1012,7 +1015,7 @@ static void botlink_real(int);
 
 /* Link to another bot
  */
-int botlink(char *linker, int idx, char *nick)
+int botlink(const char *linker, int idx, char *nick)
 {
   struct userrec *u = get_user_by_handle(userlist, nick);
 

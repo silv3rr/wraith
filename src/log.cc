@@ -53,8 +53,8 @@ bool	debug_output = 1;      /* Disply output to server to LOG_SERVEROUT */
 
 typedef struct {
 	int flag;
-	char *type;
-	unsigned char c;
+	const char *type;
+	const unsigned char c;
 } logmode_mapping_t;
 
 static logmode_mapping_t logmode_mappings[] = {
@@ -335,11 +335,10 @@ void putlog(int type, const char *chname, const char *format, ...)
   }
 }
 
-#if 0
 void
 irc_log(struct chanset_t *chan, const char *format, ...)
 {
-#ifdef NOTHANKS
+#ifdef NOTYET
   char va_out[LOGLINEMAX + 1];
   va_list va;
 
@@ -363,5 +362,4 @@ irc_log(struct chanset_t *chan, const char *format, ...)
 */
 #endif 
 }
-#endif
 /* vim: set sts=2 sw=2 ts=8 et: */

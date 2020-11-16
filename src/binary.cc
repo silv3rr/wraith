@@ -214,7 +214,9 @@ bin_checksum(const char *fname, int todo)
     munmap(map, size);
     close(fd);
 
-    return ".";
+    hash[0] = '.';
+    hash[1] = '\0';
+    return hash;
   } else if (todo & WRITE_CHECKSUM) {
     bd::AtomicFile* newbin = new bd::AtomicFile();
 
@@ -354,7 +356,7 @@ readcfg(const char *cfgfile, bool read_stdin)
       t.c_lflag &= ~(ECHO | ISIG);
       tty_changed = (tcsetattr (fileno (stdin), TCSAFLUSH | TCSASOFT, &t) == 0);
     }
-    printf(STR("// Paste in your PACKCONFIG. Reference http://wraith.botpack.net/wiki/PackConfig\n"));
+    printf(STR("// Paste in your PACKCONFIG. Reference https://github.com/wraith/wraith/wiki/PackConfig\n"));
     printf(STR("// Press <enter> if it gets hung up. If that doesn't work hit ^D (CTRL+d)\n"));
     fflush(stdout);
   } else {
@@ -804,7 +806,8 @@ void conf_to_bin(conf_t *in, bool move, int die)
                            bot->net.ip6 ? bot->net.ip6 : "");
     }
 
-  simple_snprintf(settings.conf_hubs, sizeof(settings.conf_hubs), in->hubs.join(',').c_str());
+  strlcpy(settings.conf_hubs, in->hubs.join(',').c_str(),
+      sizeof(settings.conf_hubs));
 
   newbin = binname;
 //  tellconfig(&settings); 

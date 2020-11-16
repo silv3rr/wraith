@@ -392,7 +392,8 @@ static void cache_debug(void)
 }
 #endif /* CACHE */
 
-static void cache_invite(struct chanset_t *chan, char *nick, char *host, char *handle, bool op, bool bot)
+static void cache_invite(struct chanset_t *chan, const char *nick,
+    const char *host, const char *handle, bool op, bool bot)
 {
 #ifdef CACHE
   cache_t *cache = NULL;
@@ -1122,7 +1123,7 @@ request_in(struct chanset_t *chan)
 /* Set the key.
  */
 void
-my_setkey(struct chanset_t *chan, char *k)
+my_setkey(struct chanset_t *chan, const char *k)
 {
   free(chan->channel.key);
   chan->channel.key = k ? strdup(k) : (char *) calloc(1, 1);
@@ -1132,7 +1133,7 @@ my_setkey(struct chanset_t *chan, char *k)
  * m should be chan->channel.(exempt|invite|ban)
  */
 static bool
-new_mask(masklist *m, char *s, char *who)
+new_mask(masklist *m, const char *s, const char *who)
 {
   for (; m && m->mask[0] && rfc_casecmp(m->mask, s); m = m->next) ;
   if (m->mask[0])
@@ -1151,7 +1152,7 @@ new_mask(masklist *m, char *s, char *who)
 /* Removes a nick from the channel member list (returns 1 if successful)
  */
 static bool
-killmember(struct chanset_t *chan, char *nick, bool cacheMember)
+killmember(struct chanset_t *chan, const char *nick, bool cacheMember)
 {
   memberlist *x = NULL, *old = NULL;
 
@@ -1765,14 +1766,8 @@ static void bot_release_nick (char *botnick, char *code, char *par) {
 
 static void rebalance_roles_chan(struct chanset_t* chan)
 {
-  bd::Array<bd::String> bots;
-  int *bot_bits;
-  short role;
-  size_t botcount, mappedbot, omappedbot, botidx, roleidx, rolecount;
-  struct flag_record fr = {FR_GLOBAL | FR_CHAN, 0, 0, 0 };
-  memberlist *m;
-
-  if (chan->needs_role_rebalance == 0) {
+  /* Compare to tand_updates which ensures a trigger on unlink/link. */
+  if (chan->role_rebalance_cookie == tand_updates) {
     return;
   }
 
@@ -1780,6 +1775,13 @@ static void rebalance_roles_chan(struct chanset_t* chan)
       !shouldjoin(chan) || (chan->channel.mode & CHANANON)) {
     return;
   }
+
+  bd::Array<bd::String> bots;
+  int *bot_bits;
+  short role;
+  size_t botcount, mappedbot, omappedbot, botidx, roleidx, rolecount;
+  struct flag_record fr = {FR_GLOBAL | FR_CHAN, 0, 0, 0 };
+  memberlist *m;
 
   /* Gather list of all bots in the channel. */
   /* XXX: Keep this known in chan->bots */
@@ -1798,6 +1800,14 @@ static void rebalance_roles_chan(struct chanset_t* chan)
     if (!(m->user->fflags & FEATURE_ROLES)) {
       continue;
     }
+    /*
+     * By requiring a linked bot it avoids descyning to the point
+     * of a bot assigning a role to a +d bot. This also allows
+     * botnet splits to balance between themselves.
+     */
+    if (!in_chain(m->user->handle))
+      continue;
+
     bots << m->user->handle;
   }
   botcount = bots.length();
@@ -1858,7 +1868,8 @@ static void rebalance_roles_chan(struct chanset_t* chan)
   /* Set my own roles */
   chan->role = (*chan->bot_roles)[conf.bot->nick];
   free(bot_bits);
-  chan->needs_role_rebalance = 0;
+  /* Reset to tand_updates which ensures a trigger on unlink/link. */
+  chan->role_rebalance_cookie = tand_updates;
 }
 
 static void rebalance_roles()

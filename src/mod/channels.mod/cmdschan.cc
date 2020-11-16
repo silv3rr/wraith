@@ -108,8 +108,9 @@ usage:
 	}
     }
   }
+  const char *reason = par;
   if (!par[0])
-    par = "requested";
+    reason = "requested";
   else if (strlen(par) > MASKREASON_MAX)
     par[MASKREASON_MAX] = 0;
   if (strlen(who) > UHOSTMAX - 4)
@@ -124,10 +125,10 @@ usage:
     simple_snprintf(s, sizeof s, "%s@*", who);	/* brain-dead? */
   else
     strlcpy(s, who, sizeof s);
-    if (conf.bot->hub)
-      simple_snprintf(s1, sizeof s1, "%s!%s@%s", origbotname, botuser, conf.bot->net.host);
-    else
-      simple_snprintf(s1, sizeof s1, "%s!%s", botname, botuserhost);
+  if (conf.bot->hub)
+    simple_snprintf(s1, sizeof s1, "%s!%s@%s", origbotname, botuser, conf.bot->net.host);
+  else
+    simple_snprintf(s1, sizeof s1, "%s!%s", botname, botuserhost);
   if (type == 'b' && s1[0] && wild_match(s, s1)) {
     dprintf(idx, "I'm not going to ban myself.\n");
     putlog(LOG_CMDS, "*", "#%s# attempted +ban %s", dcc[idx].nick, s);
@@ -139,15 +140,15 @@ usage:
     s[70] = 0;
   }
   if (chan) {
-    u_addmask(type, chan, s, dcc[idx].nick, par, expire_time ? now + expire_time : 0, 0);
-    if (par[0] == '*') {
+    u_addmask(type, chan, s, dcc[idx].nick, reason, expire_time ? now + expire_time : 0, 0);
+    if (reason[0] == '*') {
       sticky = 1;
-      par++;
-      putlog(LOG_CMDS, "*", "#%s# (%s) +%s %s %s (%s) (sticky)", dcc[idx].nick, dcc[idx].u.chat->con_chan, cmd, s, chan->dname, par);
-      dprintf(idx, "New %s sticky %s: %s (%s)\n", chan->dname, cmd, s, par);
+      reason++;
+      putlog(LOG_CMDS, "*", "#%s# (%s) +%s %s %s (%s) (sticky)", dcc[idx].nick, dcc[idx].u.chat->con_chan, cmd, s, chan->dname, reason);
+      dprintf(idx, "New %s sticky %s: %s (%s)\n", chan->dname, cmd, s, reason);
     } else {
-      putlog(LOG_CMDS, "*", "#%s# (%s) +%s %s %s (%s)", dcc[idx].nick, dcc[idx].u.chat->con_chan, cmd, s, chan->dname, par);
-      dprintf(idx, "New %s %s: %s (%s)\n", chan->dname, cmd, s, par);
+      putlog(LOG_CMDS, "*", "#%s# (%s) +%s %s %s (%s)", dcc[idx].nick, dcc[idx].u.chat->con_chan, cmd, s, chan->dname, reason);
+      dprintf(idx, "New %s %s: %s (%s)\n", chan->dname, cmd, s, reason);
     }
     if (!conf.bot->hub) {
       if (type == 'e' || type == 'I')
@@ -159,15 +160,15 @@ usage:
     } else
       write_userfile(idx);
   } else {
-    u_addmask(type, NULL, s, dcc[idx].nick, par, expire_time ? now + expire_time : 0, 0);
-    if (par[0] == '*') {
+    u_addmask(type, NULL, s, dcc[idx].nick, reason, expire_time ? now + expire_time : 0, 0);
+    if (reason[0] == '*') {
       sticky = 1;
-      par++;
-      putlog(LOG_CMDS, "*", "#%s# (GLOBAL) +%s %s (%s) (sticky)", dcc[idx].nick, cmd, s, par);
-      dprintf(idx, "New sticky %s: %s (%s)\n", cmd, s, par);
+      reason++;
+      putlog(LOG_CMDS, "*", "#%s# (GLOBAL) +%s %s (%s) (sticky)", dcc[idx].nick, cmd, s, reason);
+      dprintf(idx, "New sticky %s: %s (%s)\n", cmd, s, reason);
     } else {
-      putlog(LOG_CMDS, "*", "#%s# (GLOBAL) +%s %s (%s)", dcc[idx].nick, cmd, s, par);
-      dprintf(idx, "New %s: %s (%s)\n", cmd, s, par);
+      putlog(LOG_CMDS, "*", "#%s# (GLOBAL) +%s %s (%s)", dcc[idx].nick, cmd, s, reason);
+      dprintf(idx, "New %s: %s (%s)\n", cmd, s, reason);
     }
     if (!conf.bot->hub) {
       for (chan = chanset; chan != NULL; chan = chan->next) {
@@ -344,10 +345,10 @@ static void cmd_masks(const char type, int idx, char *par)
 
   if (!strcasecmp(par, "all")) {
     putlog(LOG_CMDS, "*", "#%s# %ss all", dcc[idx].nick, str_type);
-    tell_masks(type, idx, 1, "");
+    tell_masks(type, idx, 1, NULL);
   } else if (!strcasecmp(par, "global")) {
     putlog(LOG_CMDS, "*", "#%s# %ss global", dcc[idx].nick, str_type);
-    tell_masks(type, idx, 1, "", 1);
+    tell_masks(type, idx, 1, NULL, 1);
   } else {
     putlog(LOG_CMDS, "*", "#%s# %ss %s", dcc[idx].nick, str_type, par);
     tell_masks(type, idx, 0, par);
@@ -681,7 +682,8 @@ static void cmd_stick_yn(int idx, char *par, int yn)
 {
   int i = 0, j;
   struct chanset_t *chan = NULL;
-  char *stick_type = NULL, s[UHOSTLEN] = "", chname[81] = "", type = 0, *str_type = NULL;
+  char s[UHOSTLEN] = "", chname[81] = "", type = 0;
+  const char *stick_type = NULL, *str_type = NULL;
   maskrec *channel_list = NULL;
 
   stick_type = newsplit(&par);
@@ -1186,7 +1188,7 @@ static void cmd_chaninfo(int idx, char *par)
 /* FIXME: SHOW_CHAR() here */
     get_mode_protect(chan, work, sizeof(work));
     dprintf(idx, "Protect modes (chanmode): %s\n", work[0] ? work : "None");
-    dprintf(idx, "Groups: %s\n", chan->groups && chan->groups->length() ? static_cast<bd::String>(chan->groups->join(" ")).c_str() : "None");
+    dprintf(idx, "Groups: %s\n", chan->groups && chan->groups->length() ? chan->groups->join(" ").c_str() : "None");
     dprintf(idx, "FiSH Key: %s\n", chan->fish_key[0] ? chan->fish_key : "not set");
 //    dprintf(idx, "Protect topic (topic)   : %s\n", chan->topic[0] ? chan->topic : "");
 /* Chanchar template

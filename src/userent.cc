@@ -114,7 +114,7 @@ def_get(struct userrec *u, struct user_entry *e)
   return e->u.string;
 }
 
-bool def_set_real(struct userrec *u, struct user_entry *e, void *buf, bool protect)
+static bool def_set_real(struct userrec *u, struct user_entry *e, void *buf, bool protect)
 {
   char *string = (char *) buf;
 
@@ -158,7 +158,7 @@ bool def_set(struct userrec *u, struct user_entry *e, void *buf)
   return (def_set_real(u, e, buf, 0));
 }
 
-bool set_protected(struct userrec *u, struct user_entry *e, void *buf)
+static bool set_protected(struct userrec *u, struct user_entry *e, void *buf)
 {
   return (def_set_real(u, e, buf, 1));
 }
@@ -565,7 +565,8 @@ struct user_entry_type USERENTRY_STATS = {
   "STATS"
 };
 
-void update_mod(char *handle, char *nick, char *cmd, char *par)
+void update_mod(const char *handle, const char *nick, const char *cmd,
+    const char *par)
 {
   char tmp[100] = "";
 
@@ -727,10 +728,8 @@ static bool laston_unpack(struct userrec *u, struct user_entry *e)
   char *par = e->u.list->extra, *arg = newsplit(&par);
   struct laston_info *li = (struct laston_info *) calloc(1, sizeof(struct laston_info));
 
-  if (!par[0])
-    par = "???";
   li->laston = atoi(arg);
-  li->lastonplace = strdup(par);
+  li->lastonplace = par[0] ? strdup(par) : strdup("???");
   list_type_kill(e->u.list);
   e->u.extra = li;
   return 1;
@@ -1106,7 +1105,7 @@ void *get_user(struct user_entry_type *et, struct userrec *u)
   return NULL;
 }
 
-bool set_user(struct user_entry_type *et, struct userrec *u, void *d)
+bool set_user(struct user_entry_type *et, struct userrec *u, const void *d)
 {
   if (!u || !et)
     return 0;
@@ -1122,7 +1121,11 @@ bool set_user(struct user_entry_type *et, struct userrec *u, void *d)
     e->u.list = NULL;
     list_insert((&(u->entries)), e);
   }
-  r = et->set(u, e, d);
+  /*
+   * d is typically having its ownership passed down except for simple strings
+   * which will be copied.
+   */
+  r = et->set(u, e, (void*)d);
   if (!e->u.list) {
     list_delete((struct list_type **) &(u->entries), (struct list_type *) e);
     free(e);
